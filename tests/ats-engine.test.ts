@@ -118,3 +118,27 @@ test('test_invite_note_never_exceeds_200_chars_with_long_names', () => {
   assert.equal(msgsEn.inviteCharCount, msgsEn.inviteNote.length);
   assert.ok(msgsEn.postAcceptDm.length > 200);
 });
+
+test('test_gupy_apresentese_reflects_evolved_kubernetes_framing', () => {
+  const db = new AppDatabase(':memory:');
+  const before = db.getProfile();
+  const k8s = before.skills.find((s) => s.name === 'Kubernetes')!;
+  const evolvedProfile = db.evolveSkill(k8s.id, {
+    level: 'solid',
+    honestFramingPt: 'Administração avançada de clusters Kubernetes multi-node, Helm charts e operadores GitOps',
+    honestFramingEn: 'Advanced multi-node Kubernetes cluster administration, Helm charts, and GitOps operators'
+  });
+
+  const cvPt = generateHonestTailoredCv(
+    {
+      title: 'Engenheiro SRE Pleno',
+      company: 'GupyTech',
+      description: 'Vaga na Gupy para Kubernetes, Docker e AWS.'
+    },
+    evolvedProfile,
+    'pt-BR'
+  );
+
+  assert.match(cvPt.gupyKit.apresenteseText, /Administra[çc][ãa]o avan[çc]ada de clusters Kubernetes multi-node/i);
+});
+

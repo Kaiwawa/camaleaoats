@@ -5,6 +5,15 @@ let state = {
   activeLang: 'pt-BR'
 };
 
+function escapeHtmlClient(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function showToast(msg) {
   const banner = document.getElementById('toast-banner');
   banner.textContent = msg;
@@ -41,20 +50,20 @@ function renderKanban() {
 
       let recruiterBadge = '';
       if (job.recruiterStatus === 'aguardando_aceite') {
-        recruiterBadge = `<div class="recruiter-alert-badge">⏳ Conexão Enviada (${job.recruiterName || 'Recruiter'}) — Lembrar de mandar DM quando aceitar!</div>`;
+        recruiterBadge = `<div class="recruiter-alert-badge">⏳ Conexão Enviada (${escapeHtmlClient(job.recruiterName || 'Recruiter')}) — Lembrar de mandar DM quando aceitar!</div>`;
       } else if (job.recruiterStatus === 'dm_enviada') {
-        recruiterBadge = `<div class="recruiter-done-badge">✅ DM Completa Enviada (${job.recruiterName || 'Recruiter'})</div>`;
+        recruiterBadge = `<div class="recruiter-done-badge">✅ DM Completa Enviada (${escapeHtmlClient(job.recruiterName || 'Recruiter')})</div>`;
       }
 
       card.innerHTML = `
         <div class="job-card-top">
-          <div class="job-card-title">${job.title}</div>
-          <span class="score-pill">${job.matchScore}% Match</span>
+          <div class="job-card-title">${escapeHtmlClient(job.title)}</div>
+          <span class="score-pill">${Number(job.matchScore)}% Match</span>
         </div>
         <div class="job-card-meta">
-          <strong>${job.company}</strong> • ${job.platform} • ${job.language === 'en' ? '🇺🇸 EN' : '🇧🇷 PT'}
+          <strong>${escapeHtmlClient(job.company)}</strong> • ${escapeHtmlClient(job.platform)} • ${job.language === 'en' ? '🇺🇸 EN' : '🇧🇷 PT'}
         </div>
-        <div class="job-card-meta">${job.location}</div>
+        <div class="job-card-meta">${escapeHtmlClient(job.location)}</div>
         ${recruiterBadge}
       `;
       container.appendChild(card);

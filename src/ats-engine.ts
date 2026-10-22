@@ -238,10 +238,13 @@ export function generateHonestTailoredCv(
       'Framed Kubernetes strictly within your real expertise (writing YAML manifests + GitOps with ArgoCD + Docker) without inventing senior cluster admin claims.'
     );
 
+    const k8sSkillEn = profile.skills.find((s) => s.name === 'Kubernetes');
+    const k8sTextEn = k8sSkillEn ? k8sSkillEn.honestFramingEn : 'Authoring and maintaining Kubernetes YAML manifests integrated with Docker and ArgoCD pipelines.';
+
     const gupyApresentese = [
       `Hello ${job.company} team! I am applying for the ${job.title} role.`,
       `I work in DevOps with a strong foundation in Docker containerization, CI/CD automation (Git, GitHub Actions), and GitOps continuous delivery using ArgoCD, combined with the AWS Certified Solutions Architect – Associate (SAA-C03) certification.`,
-      `In Kubernetes, I comfortably write and maintain YAML manifests integrated with Docker and ArgoCD pipelines, and I also have practical familiarity with Terraform, Ansible, and Grafana observability.`,
+      `In Kubernetes: ${k8sTextEn} I also bring practical familiarity with Terraform, Ansible, and Grafana observability.`,
       `One of my biggest strengths is my steep learning curve and adaptability across different cloud providers and DevOps stacks. I am excited to contribute to ${job.company}'s remote infrastructure and reliability goals!`
     ].join('\n\n');
 
@@ -296,10 +299,13 @@ export function generateHonestTailoredCv(
     'Posicionou Kubernetes de forma 100% honesta (escrita de manifestos YAML + GitOps com ArgoCD + Docker), passando no filtro de palavras-chave do ATS sem inventar senioridade de cluster admin.'
   );
 
+  const k8sSkillPt = profile.skills.find((s) => s.name === 'Kubernetes');
+  const k8sTextPt = k8sSkillPt ? k8sSkillPt.honestFramingPt : 'Escrita e manutenção de manifestos YAML para Kubernetes integrados ao fluxo de containers e ArgoCD.';
+
   const gupyApresentesePt = [
     `Olá, time da ${job.company}! Tenho grande interesse na oportunidade de ${job.title}.`,
     `Atuo na área de DevOps com foco prático na stack de Cloud, Containers e Automação: possuo a certificação AWS Certified Solutions Architect – Associate (SAA-C03), forte domínio em Docker, construção de pipelines CI/CD com Git e GitHub Actions e entrega contínua / GitOps com ArgoCD.`,
-    `No ecossistema Kubernetes, escrevo e mantenho manifestos YAML integrados ao fluxo de containers e ArgoCD, além de contar com vivência prática em evolução constante com Terraform (IaC), Ansible e observabilidade com Grafana.`,
+    `No ecossistema Kubernetes: ${k8sTextPt} Além disso, conto com vivência prática em evolução constante com Terraform (IaC), Ansible e observabilidade com Grafana.`,
     `Tenho facilidade extrema de adaptação a novas plataformas de Cloud e ferramentas de esteira, com curva de aprendizado muito rápida. Estou pronto para somar remotamente ao time da ${job.company}!`
   ].join('\n\n');
 
