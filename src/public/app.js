@@ -7,7 +7,7 @@ let state = {
   activeLang: 'pt-BR',
   selectedSeniorities: [],
   locationFilter: 'br',
-  workModes: ['remoto'],
+  workModes: [],
   datePosted: 'all',
   activeAgentSlug: 'cv-adapter.md'
 };
@@ -50,17 +50,21 @@ function formatSeniorityTriggerLabel(values) {
 }
 
 function formatModalityTriggerLabel(values) {
-  if (!values || values.length === 0) return 'Remoto';
-  if (values.length === 3) return 'Todas (3)';
+  if (!values || values.length === 0 || values.length === 3) return 'Todas';
   return values.map((v) => MODALITY_LABELS[v] || v).join(', ');
 }
 
 function buildLocationDisplay(locationFilter, workModes) {
   const locPt = locationFilter === 'global' ? 'Global / LatAm' : 'Brasil';
   const locEn = locationFilter === 'global' ? 'Worldwide / LatAm' : 'Brazil';
-  const modes = workModes.length ? workModes : ['remoto'];
-  const ptLabels = modes.map((m) => (m === 'hibrido' ? 'Híbrido' : m === 'presencial' ? 'Presencial' : 'Remoto'));
-  const enLabels = modes.map((m) => (m === 'hibrido' ? 'Hybrid' : m === 'presencial' ? 'On-site' : 'Remote'));
+  if (!workModes || workModes.length === 0 || workModes.length === 3) {
+    return {
+      pt: `${locPt} (Todas)`,
+      en: `${locEn} (All)`
+    };
+  }
+  const ptLabels = workModes.map((m) => (m === 'hibrido' ? 'Híbrido' : m === 'presencial' ? 'Presencial' : 'Remoto'));
+  const enLabels = workModes.map((m) => (m === 'hibrido' ? 'Hybrid' : m === 'presencial' ? 'On-site' : 'Remote'));
   return {
     pt: `${locPt} (${ptLabels.join(', ')})`,
     en: `${locEn} (${enLabels.join(', ')})`
@@ -164,12 +168,6 @@ function renderHeader() {
     headerInitializedFromProfile = true;
     const loc = (state.profile.locationPt || '').toLowerCase();
     state.locationFilter = loc.includes('global') || loc.includes('latam') || loc.includes('worldwide') ? 'global' : 'br';
-
-    const modes = [];
-    if (loc.includes('remoto') || loc.includes('remote')) modes.push('remoto');
-    if (loc.includes('híbrido') || loc.includes('hibrido') || loc.includes('hybrid')) modes.push('hibrido');
-    if (loc.includes('presencial') || loc.includes('on-site')) modes.push('presencial');
-    state.workModes = modes.length > 0 ? modes : ['remoto'];
   }
 
   const locEl = document.getElementById('select-location');
@@ -329,17 +327,12 @@ document.getElementById('select-location').addEventListener('change', async (e) 
   await persistLocationAndModality();
 });
 
-// Separated Modality Checkboxes (Remoto, Híbrido, Presencial)
+// Separated Modality Checkboxes (Remoto, Híbrido, Presencial — empty means "Todas")
 document.querySelectorAll('#filter-modality-checks input[name="mod-check"]').forEach((chk) => {
   chk.addEventListener('change', async () => {
     const checked = Array.from(
       document.querySelectorAll('#filter-modality-checks input[name="mod-check"]:checked')
     ).map((el) => el.value);
-    if (checked.length === 0) {
-      chk.checked = true;
-      showToast('Selecione pelo menos uma modalidade (Remoto, Híbrido ou Presencial).');
-      return;
-    }
     state.workModes = checked;
     const modLabelEl = document.getElementById('label-modality-dropdown');
     if (modLabelEl) modLabelEl.textContent = formatModalityTriggerLabel(state.workModes);
@@ -750,10 +743,6 @@ document.getElementById('btn-confirm-scrape-run').addEventListener('click', asyn
   const checkedMods = Array.from(
     document.querySelectorAll('#confirm-modality-checks input[name="confirm-mod-check"]:checked')
   ).map((el) => el.value);
-  if (checkedMods.length === 0) {
-    showToast('Selecione pelo menos uma modalidade (Remoto, Híbrido ou Presencial).');
-    return;
-  }
 
   hasConfirmedFirstSearch = true;
   state.selectedSeniorities = Array.from(

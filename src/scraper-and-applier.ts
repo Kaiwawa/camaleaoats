@@ -104,8 +104,12 @@ export function buildSearchQueryFromProfile(
   };
 
   let remoteFilter = '2';
-  if (extra?.workModes && extra.workModes.length > 0) {
-    remoteFilter = extra.workModes.map((m) => modeToCode[m] || '2').join(',');
+  if (extra?.workModes !== undefined) {
+    if (extra.workModes.length === 0 || extra.workModes.length === 3) {
+      remoteFilter = '2,3,1';
+    } else {
+      remoteFilter = extra.workModes.map((m) => modeToCode[m] || '2').join(',');
+    }
   } else if (workMode === 'hibrido_br' || workMode === 'hibrido_sp') {
     remoteFilter = '3';
   } else if (workMode === 'presencial_br') {

@@ -12,7 +12,7 @@
     <div class="brand-group">
       <div class="logo">🦎 Camaleão<span>ATS</span></div>
 
-      <!-- Senioridade Desejada (Caixas de Seleção dentro de Menu Suspenso) -->
+      <!-- 1. Senioridade Desejada (Caixas de Seleção dentro de Menu Suspenso) -->
       <div class="filter-group check-dropdown" id="topbar-seniority-group">
         <span class="filter-label">Senioridade:</span>
         <button type="button" class="check-dropdown-toggle" id="btn-seniority-dropdown" aria-expanded="false">
@@ -27,26 +27,26 @@
         </div>
       </div>
 
-      <!-- Local (Separado de Modalidade: Brasil vs Global/LatAm) -->
+      <!-- 2. Modalidade (Caixas de Seleção dentro de Menu Suspenso: Todas quando nenhuma selecionada) -->
+      <div class="filter-group check-dropdown" id="topbar-modality-group">
+        <span class="filter-label">Modalidade:</span>
+        <button type="button" class="check-dropdown-toggle" id="btn-modality-dropdown" aria-expanded="false">
+          <span id="label-modality-dropdown">Todas</span> ▾
+        </button>
+        <div class="check-dropdown-menu hidden" id="filter-modality-checks" role="group" aria-label="Modalidade da vaga">
+          <label class="check-menu-item"><input type="checkbox" name="mod-check" value="remoto" /><span>Remoto</span></label>
+          <label class="check-menu-item"><input type="checkbox" name="mod-check" value="hibrido" /><span>Híbrido</span></label>
+          <label class="check-menu-item"><input type="checkbox" name="mod-check" value="presencial" /><span>Presencial</span></label>
+        </div>
+      </div>
+
+      <!-- 3. Local (Brasil vs Global/LatAm) -->
       <div class="filter-group">
         <label for="select-location" class="filter-label">Local:</label>
         <select id="select-location" class="select-compact">
           <option value="br">🌎 Brasil</option>
           <option value="global">🌐 Global / LatAm</option>
         </select>
-      </div>
-
-      <!-- Modalidade (Caixas de Seleção dentro de Menu Suspenso: Remoto, Híbrido, Presencial) -->
-      <div class="filter-group check-dropdown" id="topbar-modality-group">
-        <span class="filter-label">Modalidade:</span>
-        <button type="button" class="check-dropdown-toggle" id="btn-modality-dropdown" aria-expanded="false">
-          <span id="label-modality-dropdown">Remoto</span> ▾
-        </button>
-        <div class="check-dropdown-menu hidden" id="filter-modality-checks" role="group" aria-label="Modalidade da vaga">
-          <label class="check-menu-item"><input type="checkbox" name="mod-check" value="remoto" checked /><span>Remoto</span></label>
-          <label class="check-menu-item"><input type="checkbox" name="mod-check" value="hibrido" /><span>Híbrido</span></label>
-          <label class="check-menu-item"><input type="checkbox" name="mod-check" value="presencial" /><span>Presencial</span></label>
-        </div>
       </div>
     </div>
 
@@ -924,23 +924,23 @@
 
   <!-- POPUP 10: Confirmação no Primeiro Clique em "🔄 Buscar Vagas" -->
   <div id="scrape-confirm-modal-backdrop" class="modal-backdrop hidden" style="z-index: 1600;">
-    <div class="modal-window modal-window-md">
+    <div class="modal-window modal-window-confirm">
       <div class="modal-header">
         <div>
           <h2>🔍 Confirmar Parâmetros da Busca de Vagas</h2>
-          <p class="modal-subtitle">Confirme a Senioridade Desejada, Localização e Modalidade antes de iniciar a busca direcionada pelo seu Título Profissional.</p>
+          <p class="modal-subtitle">Confirme a Senioridade, Modalidade e Local antes de iniciar a busca direcionada pelo seu Título Profissional.</p>
         </div>
         <button type="button" class="btn-close" id="btn-close-scrape-confirm">✕</button>
       </div>
-      <div class="modal-content-padded">
-        <div class="add-item-card" style="margin: 0;">
-          <div style="margin-bottom: 12px; font-size: 13px; color: var(--muted);">
+      <div class="modal-content-padded modal-content-confirm">
+        <div class="add-item-card confirm-card-box">
+          <div style="margin-bottom: 14px; font-size: 13px; color: var(--muted);">
             🎯 Título Profissional que direciona a pesquisa: <strong id="confirm-scrape-title" style="color: var(--text);">DevOps Engineer</strong>
           </div>
 
-          <div class="form-grid-3">
+          <div class="form-grid-3 confirm-filters-grid">
             <div class="check-dropdown" id="confirm-seniority-group">
-              <label>Senioridade Desejada</label>
+              <label>Senioridade</label>
               <button type="button" class="check-dropdown-toggle check-dropdown-full" id="btn-confirm-seniority-dropdown" aria-expanded="false">
                 <span id="label-confirm-seniority-dropdown">Todas</span> ▾
               </button>
@@ -952,6 +952,17 @@
                 <label class="check-menu-item"><input type="checkbox" name="confirm-sen-check" value="especialista" /><span>Especialista / Staff</span></label>
               </div>
             </div>
+            <div class="check-dropdown" id="confirm-modality-group">
+              <label>Modalidade</label>
+              <button type="button" class="check-dropdown-toggle check-dropdown-full" id="btn-confirm-modality-dropdown" aria-expanded="false">
+                <span id="label-confirm-modality-dropdown">Todas</span> ▾
+              </button>
+              <div class="check-dropdown-menu hidden" id="confirm-modality-checks" role="group" aria-label="Modalidade da vaga">
+                <label class="check-menu-item"><input type="checkbox" name="confirm-mod-check" value="remoto" /><span>Remoto</span></label>
+                <label class="check-menu-item"><input type="checkbox" name="confirm-mod-check" value="hibrido" /><span>Híbrido</span></label>
+                <label class="check-menu-item"><input type="checkbox" name="confirm-mod-check" value="presencial" /><span>Presencial</span></label>
+              </div>
+            </div>
             <div>
               <label for="confirm-scrape-location">Local</label>
               <select id="confirm-scrape-location">
@@ -959,19 +970,8 @@
                 <option value="global">🌐 Global / LatAm</option>
               </select>
             </div>
-            <div class="check-dropdown" id="confirm-modality-group">
-              <label>Modalidade</label>
-              <button type="button" class="check-dropdown-toggle check-dropdown-full" id="btn-confirm-modality-dropdown" aria-expanded="false">
-                <span id="label-confirm-modality-dropdown">Remoto</span> ▾
-              </button>
-              <div class="check-dropdown-menu hidden" id="confirm-modality-checks" role="group" aria-label="Modalidade da vaga">
-                <label class="check-menu-item"><input type="checkbox" name="confirm-mod-check" value="remoto" checked /><span>Remoto</span></label>
-                <label class="check-menu-item"><input type="checkbox" name="confirm-mod-check" value="hibrido" /><span>Híbrido</span></label>
-                <label class="check-menu-item"><input type="checkbox" name="confirm-mod-check" value="presencial" /><span>Presencial</span></label>
-              </div>
-            </div>
           </div>
-          <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
+          <div class="confirm-actions-row">
             <button type="button" class="btn btn-secondary btn-sm" id="btn-cancel-scrape-confirm">Cancelar</button>
             <button type="button" class="btn btn-primary btn-sm" id="btn-confirm-scrape-run">✅ Confirmar e Buscar Vagas</button>
           </div>

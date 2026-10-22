@@ -701,6 +701,43 @@ html[data-theme="light"] .kanban-col {
   max-width: 580px;
 }
 
+/* Confirmation Modal sized so dropdown menus (Senioridade & Modalidade) fit comfortably */
+.modal-window-confirm {
+  max-width: 720px;
+  overflow: visible;
+}
+
+.modal-window-confirm .modal-header {
+  border-radius: 13px 13px 0 0;
+}
+
+.modal-content-confirm {
+  overflow: visible;
+  padding: 22px 24px;
+}
+
+.confirm-card-box {
+  margin: 0;
+  padding: 18px 20px;
+  min-height: 295px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.confirm-filters-grid {
+  align-items: start;
+}
+
+.confirm-actions-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 24px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
 /* Fixed-size responsive Profile Modal so switching tabs never grows/shrinks */
 .modal-window-profile {
   height: min(690px, 88vh);
