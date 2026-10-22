@@ -216,8 +216,9 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
         } else if (body.name) {
           db.addCertification({
             name: String(body.name),
+            code: String(body.code ?? ''),
             issuer: String(body.issuer ?? ''),
-            year: String(body.year ?? ''),
+            year: String(body.year ?? '').replace(/\D/g, '').slice(0, 4),
             credentialUrl: String(body.credentialUrl ?? '')
           });
         }
@@ -268,6 +269,8 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
           db.deleteSkill(Number(body.deleteSkillId));
         } else if (body.skillId) {
           db.evolveSkill(Number(body.skillId), {
+            name: body.name ? String(body.name) : undefined,
+            category: body.category ? String(body.category) : undefined,
             level: body.level ? (String(body.level) as SkillLevel) : undefined,
             honestFramingPt: body.honestFramingPt ? String(body.honestFramingPt) : undefined,
             honestFramingEn: body.honestFramingEn ? String(body.honestFramingEn) : undefined,

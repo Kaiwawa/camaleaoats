@@ -38,12 +38,12 @@
     </div>
 
     <div class="actions-group">
-      <!-- Theme Switcher: Auto / Claro (Branco) / Escuro (Preto) -->
-      <div class="theme-switcher" role="group" aria-label="Tema de cores">
-        <button type="button" class="theme-btn active" data-theme-val="auto" title="Tema Automático do Sistema">🌓 Auto</button>
-        <button type="button" class="theme-btn" data-theme-val="light" title="Tema Claro (Branco)">☀️ Claro</button>
-        <button type="button" class="theme-btn" data-theme-val="dark" title="Tema Escuro (Preto)">🌙 Escuro</button>
-      </div>
+      <!-- Modern Flat Day & Night On/Off Switch -->
+      <button type="button" class="day-night-switch" id="btn-theme-toggle" role="switch" aria-checked="true" title="Alternar Modo Claro (Dia) / Escuro (Noite)">
+        <span class="dn-track-decor dn-clouds">☁️ ⛅</span>
+        <span class="dn-track-decor dn-stars">✨ ⭐</span>
+        <span class="dn-thumb"><span class="dn-thumb-icon">🌙</span></span>
+      </button>
 
       <button class="btn btn-secondary" id="btn-open-profile">👤 Perfil</button>
       <button class="btn btn-secondary" id="btn-open-settings">⚙️ Configurações</button>
@@ -52,7 +52,11 @@
     </div>
   </header>
 
-  <div id="toast-banner" class="toast hidden"></div>
+  <!-- Centered Standardized Notification Popup -->
+  <div id="toast-banner" class="toast-popup hidden" role="status" aria-live="polite">
+    <div class="toast-popup-icon">🦎</div>
+    <div class="toast-popup-text" id="toast-banner-text">Notificação</div>
+  </div>
 
   <!-- 4-Column Kanban Board with Native Drag and Drop -->
   <main class="kanban-board">
@@ -244,9 +248,9 @@
     </div>
   </div>
 
-  <!-- POPUP 2: Modal "👤 Perfil" (With CV Extractor + 5 Dedicated Tabs) -->
+  <!-- POPUP 2: Modal "👤 Perfil" (With CV Extractor + 5 Dedicated Fixed-Size Responsive Tabs) -->
   <div id="profile-modal-backdrop" class="modal-backdrop hidden">
-    <div class="modal-window modal-window-lg">
+    <div class="modal-window modal-window-lg modal-window-profile">
       <div class="modal-header">
         <div>
           <h2>👤 Perfil Profissional</h2>
@@ -347,17 +351,20 @@
           </div>
         </div>
 
-        <!-- Profile Tab 3: Certifications (NO Seniority Level!) -->
+        <!-- Profile Tab 3: Certifications (NO Seniority Level — Name + Code + Issuer + Expiration Year) -->
         <div id="ptab-certs" class="ptab-panel hidden">
-          <p class="section-hint">Certificações oficiais não possuem nível de senioridade — informe apenas o Nome, a Organização Emissora e o Ano/Status.</p>
+          <p class="section-hint">Certificações oficiais não possuem nível de senioridade — informe o Nome, Código da Certificação, Organização Emissora e Ano de Vencimento.</p>
           <div id="certs-list" class="items-list"></div>
 
           <div class="add-item-card">
             <h4>+ Adicionar Certificação</h4>
-            <div class="form-grid-3">
-              <input type="text" id="new-cert-name" placeholder="Nome (Ex: AWS Certified Solutions Architect - SAA-C03)" />
+            <div class="form-grid-2">
+              <input type="text" id="new-cert-name" placeholder="Nome da Certificação (Ex: AWS Certified Solutions Architect)" />
+              <input type="text" id="new-cert-code" placeholder="Código da Certificação (Ex: SAA-C03, CKA, AZ-104)" />
+            </div>
+            <div class="form-grid-2" style="margin-top: 8px;">
               <input type="text" id="new-cert-issuer" placeholder="Emissor (Ex: AWS, CNCF, HashiCorp)" />
-              <input type="text" id="new-cert-year" inputmode="numeric" maxlength="4" placeholder="Ano (Ex: 2025)" />
+              <input type="text" id="new-cert-year" inputmode="numeric" maxlength="4" pattern="\d{4}" placeholder="Ano de Vencimento (Somente ano, Ex: 2028)" />
             </div>
             <button type="button" class="btn btn-primary btn-sm" id="btn-add-cert" style="margin-top: 8px;">+ Adicionar Certificação</button>
           </div>
@@ -427,6 +434,18 @@
       </div>
 
       <div class="modal-content-padded">
+        <div class="card-block" style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
+          <div>
+            <h4 style="margin-bottom: 4px;">🌓 Tema Visual (Modo Dia & Noite)</h4>
+            <p class="section-hint" style="margin: 0;">Ao abrir o site, o tema inicia automaticamente de acordo com o modo atual do seu navegador. Use a chave ao lado para alternar entre Claro (Dia) e Escuro (Noite).</p>
+          </div>
+          <button type="button" class="day-night-switch" id="btn-theme-toggle-settings" role="switch" aria-checked="true" title="Alternar Modo Claro (Dia) / Escuro (Noite)">
+            <span class="dn-track-decor dn-clouds">☁️ ⛅</span>
+            <span class="dn-track-decor dn-stars">✨ ⭐</span>
+            <span class="dn-thumb"><span class="dn-thumb-icon">🌙</span></span>
+          </button>
+        </div>
+
         <div class="card-block" style="margin-bottom: 16px;">
           <h4>🔑 Provedor de Inteligência Artificial & API Key</h4>
           <div class="form-grid-2" style="margin-top: 8px;">
@@ -515,6 +534,56 @@
         </div>
         <div style="margin-top: 12px; display:flex; justify-content:flex-end;">
           <button type="button" class="btn btn-primary" id="btn-submit-ingest">🔍 Calcular Match e Adicionar Vaga</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- POPUP 5: Mini Popup para Editar Habilidade (Aberto pelo ícone de lápis ✏️) -->
+  <div id="skill-edit-modal-backdrop" class="modal-backdrop hidden" style="z-index: 1500;">
+    <div class="modal-window modal-window-sm">
+      <div class="modal-header">
+        <div>
+          <h2>✏️ Editar Habilidade / Tecnologia</h2>
+          <p class="modal-subtitle">Altere o nome, categoria, senioridade ou descrição sem precisar excluir a habilidade.</p>
+        </div>
+        <button type="button" class="btn-close" id="btn-close-skill-edit-modal">✕</button>
+      </div>
+      <div class="modal-content-padded">
+        <input type="hidden" id="edit-skill-id" />
+        <div class="add-item-card" style="margin: 0;">
+          <div class="form-grid-3">
+            <div>
+              <label>Tecnologia / Habilidade</label>
+              <input type="text" id="edit-skill-name" placeholder="Ex: Docker, Kubernetes..." />
+            </div>
+            <div>
+              <label>Categoria</label>
+              <input type="text" id="edit-skill-cat" placeholder="Ex: Cloud, CI/CD, Containers" />
+            </div>
+            <div>
+              <label>Nível de Familiaridade</label>
+              <select id="edit-skill-level">
+                <option value="evolving">🟡 Iniciante / Em Evolução</option>
+                <option value="practical">🟢 Prático / Autônomo</option>
+                <option value="solid">🔥 Sólido / Avançado</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-grid-2" style="margin-top: 10px;">
+            <div>
+              <label>Como descrever em PT-BR no CV (sem alucinar)</label>
+              <input type="text" id="edit-skill-pt" placeholder="Descrição técnica em Português..." />
+            </div>
+            <div>
+              <label>Como descrever em Inglês no CV</label>
+              <input type="text" id="edit-skill-en" placeholder="Technical description in English..." />
+            </div>
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-cancel-skill-edit">Cancelar</button>
+            <button type="button" class="btn btn-primary btn-sm" id="btn-save-skill-edit">💾 Salvar Alterações</button>
+          </div>
         </div>
       </div>
     </div>

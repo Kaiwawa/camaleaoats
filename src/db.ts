@@ -86,6 +86,7 @@ export class AppDatabase {
       CREATE TABLE IF NOT EXISTS certifications (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL UNIQUE,
+        code TEXT NOT NULL DEFAULT '',
         issuer TEXT NOT NULL DEFAULT '',
         year TEXT NOT NULL DEFAULT '',
         credential_url TEXT NOT NULL DEFAULT ''
@@ -159,6 +160,12 @@ export class AppDatabase {
     if (!cols.some((c) => c.name === 'seniority')) {
       this.db.exec(`ALTER TABLE jobs ADD COLUMN seniority TEXT NOT NULL DEFAULT 'junior_pleno'`);
     }
+
+    // Safe migration if certifications table lacked code column
+    const certCols = this.db.prepare('PRAGMA table_info(certifications)').all() as Array<{ name: string }>;
+    if (!certCols.some((c) => c.name === 'code')) {
+      this.db.exec(`ALTER TABLE certifications ADD COLUMN code TEXT NOT NULL DEFAULT ''`);
+    }
   }
 
   private seedIfEmpty(): void {
@@ -188,8 +195,8 @@ export class AppDatabase {
         );
 
       this.db
-        .prepare('INSERT OR IGNORE INTO certifications (name, issuer, year, credential_url) VALUES (?, ?, ?, ?)')
-        .run('AWS Certified Solutions Architect - Associate (SAA-C03)', 'Amazon Web Services (AWS)', '2025', '');
+        .prepare('INSERT OR IGNORE INTO certifications (name, code, issuer, year, credential_url) VALUES (?, ?, ?, ?, ?)')
+        .run('AWS Certified Solutions Architect - Associate', 'SAA-C03', 'Amazon Web Services (AWS)', '2028', '');
 
       this.db
         .prepare('INSERT INTO educations (course, institution, degree, status, year) VALUES (?, ?, ?, ?, ?)')
@@ -405,6 +412,7 @@ export class AppDatabase {
     const certificationItems: CertificationItem[] = certRows.map((r) => ({
       id: Number(r.id),
       name: String(r.name),
+      code: String(r.code ?? ''),
       issuer: String(r.issuer ?? ''),
       year: String(r.year ?? ''),
       credentialUrl: String(r.credential_url ?? '')
@@ -428,7 +436,9 @@ export class AppDatabase {
       url: String(r.url ?? '')
     }));
 
-    const certifications = certificationItems.map((c) => c.name);
+    const certifications = certificationItems.map((c) =>
+      c.code && !c.name.toUpperCase().includes(c.code.toUpperCase()) ? `${c.name} (${c.code})` : c.name
+    );
     const seniority = this.computeSeniority(skills, certificationItems);
 
     return {
@@ -454,14 +464,34 @@ export class AppDatabase {
     };
   }
 
-  public addCertification(cert: { name: string; issuer?: string; year?: string; credentialUrl?: string }): Profile {
+  public addCertification(cert: {
+    name: string;
+    code?: string;
+    issuer?: string;
+    year?: string;
+    credentialUrl?: string;
+  }): Profile {
+    const cleanYear = String(cert.year ?? '')
+      .replace(/\D/g, '')
+      .slice(0, 4);
+    const cleanCode = String(cert.code ?? '').trim().toUpperCase();
     this.db
       .prepare(
-        `INSERT INTO certifications (name, issuer, year, credential_url)
-         VALUES (?, ?, ?, ?)
-         ON CONFLICT(name) DO UPDATE SET issuer = excluded.issuer, year = excluded.year, credential_url = excluded.credential_url`
+        `INSERT INTO certifications (name, code, issuer, year, credential_url)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(name) DO UPDATE SET
+           code = excluded.code,
+           issuer = excluded.issuer,
+           year = excluded.year,
+           credential_url = excluded.credential_url`
       )
-      .run(cert.name.trim(), cert.issuer?.trim() || 'Certificadora Oficial', cert.year?.trim() || '', cert.credentialUrl?.trim() || '');
+      .run(
+        cert.name.trim(),
+        cleanCode,
+        cert.issuer?.trim() || 'Certificadora Oficial',
+        cleanYear,
+        cert.credentialUrl?.trim() || ''
+      );
     return this.getProfile();
   }
 
@@ -621,6 +651,8 @@ export class AppDatabase {
   public evolveSkill(
     skillId: number,
     update: {
+      name?: string;
+      category?: string;
       level?: SkillLevel;
       honestFramingPt?: string;
       honestFramingEn?: string;
@@ -632,13 +664,18 @@ export class AppDatabase {
       throw new Error(`Skill ${skillId} not found`);
     }
 
+    const newName = update.name?.trim() || String(existing.name);
+    const newCategory = update.category?.trim() || String(existing.category);
+
     this.db
       .prepare(
         `UPDATE skills SET
-          level = ?, honest_framing_pt = ?, honest_framing_en = ?, project_note = ?
+          name = ?, category = ?, level = ?, honest_framing_pt = ?, honest_framing_en = ?, project_note = ?
          WHERE id = ?`
       )
       .run(
+        newName,
+        newCategory,
         update.level ?? String(existing.level),
         update.honestFramingPt ?? String(existing.honest_framing_pt),
         update.honestFramingEn ?? String(existing.honest_framing_en),

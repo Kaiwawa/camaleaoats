@@ -632,27 +632,33 @@ export function extractProfileFromCvText(
     const clean = certLine.replace(/^[-•*]\s*/, '').trim();
     if (clean.length < 4) continue;
     const yearMatch = clean.match(/\b(20\d{2})\b/);
+    const codeMatch = clean.match(/\b([A-Z]{2,4}-[A-Z0-9]{2,4}|CKA|CKAD|CKS|KCNA|LPIC-\d)\b/i);
     const withoutYear = clean.replace(/\(\s*20\d{2}\s*\)/g, '').trim();
     const parts = withoutYear.split(/\s+[-–—|]\s+/);
     const name = parts[0].trim();
     const issuer = parts[1]?.trim() || 'Certificadora Oficial';
-    db.addCertification({ name, issuer, year: yearMatch ? yearMatch[1] : 'Ativa' });
+    db.addCertification({
+      name,
+      code: codeMatch ? codeMatch[1].toUpperCase() : '',
+      issuer,
+      year: yearMatch ? yearMatch[1] : ''
+    });
   }
 
   const knownCerts = [
-    { rx: /AWS.*Solutions Architect.*Associate|SAA-C03/i, name: 'AWS Certified Solutions Architect - Associate (SAA-C03)', issuer: 'AWS' },
-    { rx: /AWS.*Cloud Practitioner|CLF-C0[12]/i, name: 'AWS Certified Cloud Practitioner', issuer: 'AWS' },
-    { rx: /Terraform Associate/i, name: 'HashiCorp Certified: Terraform Associate', issuer: 'HashiCorp' },
-    { rx: /\bCKA\b|Certified Kubernetes Administrator/i, name: 'Certified Kubernetes Administrator (CKA)', issuer: 'CNCF' },
-    { rx: /\bCKAD\b|Certified Kubernetes Application Developer/i, name: 'Certified Kubernetes Application Developer (CKAD)', issuer: 'CNCF' },
-    { rx: /AZ-104|Azure Administrator/i, name: 'Microsoft Certified: Azure Administrator Associate (AZ-104)', issuer: 'Microsoft' },
-    { rx: /AZ-900|Azure Fundamentals/i, name: 'Microsoft Certified: Azure Fundamentals (AZ-900)', issuer: 'Microsoft' },
-    { rx: /GitHub Actions Certified/i, name: 'GitHub Actions Certified', issuer: 'GitHub' }
+    { rx: /AWS.*Solutions Architect.*Associate|SAA-C03/i, name: 'AWS Certified Solutions Architect - Associate', code: 'SAA-C03', issuer: 'AWS' },
+    { rx: /AWS.*Cloud Practitioner|CLF-C0[12]/i, name: 'AWS Certified Cloud Practitioner', code: 'CLF-C02', issuer: 'AWS' },
+    { rx: /Terraform Associate/i, name: 'HashiCorp Certified: Terraform Associate', code: 'TA-003', issuer: 'HashiCorp' },
+    { rx: /\bCKA\b|Certified Kubernetes Administrator/i, name: 'Certified Kubernetes Administrator', code: 'CKA', issuer: 'CNCF' },
+    { rx: /\bCKAD\b|Certified Kubernetes Application Developer/i, name: 'Certified Kubernetes Application Developer', code: 'CKAD', issuer: 'CNCF' },
+    { rx: /AZ-104|Azure Administrator/i, name: 'Microsoft Certified: Azure Administrator Associate', code: 'AZ-104', issuer: 'Microsoft' },
+    { rx: /AZ-900|Azure Fundamentals/i, name: 'Microsoft Certified: Azure Fundamentals', code: 'AZ-900', issuer: 'Microsoft' },
+    { rx: /GitHub Actions Certified/i, name: 'GitHub Actions Certified', code: 'GH-200', issuer: 'GitHub' }
   ];
 
   for (const kc of knownCerts) {
     if (kc.rx.test(rawText)) {
-      db.addCertification({ name: kc.name, issuer: kc.issuer, year: 'Ativa' });
+      db.addCertification({ name: kc.name, code: kc.code, issuer: kc.issuer, year: '' });
     }
   }
 

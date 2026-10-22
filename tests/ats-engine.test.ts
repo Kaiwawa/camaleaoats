@@ -214,8 +214,8 @@ test('extractProfileFromCvText parses multi-section Portuguese/English CVs into 
   assert.ok(profile.educations.some((e) => e.course.includes('Redes de Computadores')));
   assert.ok(profile.educations.some((e) => e.institution.includes('FIAP')));
 
-  // Certifications routed to certificationItems without seniority level
-  assert.ok(profile.certificationItems.some((c) => c.name.includes('SAA-C03')));
+  // Certifications routed to certificationItems without seniority level and with extracted code
+  assert.ok(profile.certificationItems.some((c) => c.code === 'SAA-C03'));
   assert.ok(profile.certificationItems.some((c) => c.name.includes('GitHub Actions')));
 
   // Skills routed to skills with Python & Linux included

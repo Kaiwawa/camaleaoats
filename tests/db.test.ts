@@ -80,7 +80,12 @@ test('moving job to ruins records negative preference weights', () => {
 
 test('separates certifications (without seniority level), educations, personal projects, settings and agent MDs', () => {
   const db = new AppDatabase(':memory:');
-  db.addCertification({ name: 'HashiCorp Certified: Terraform Associate', issuer: 'HashiCorp', year: '2026' });
+  db.addCertification({
+    name: 'HashiCorp Certified: Terraform Associate',
+    code: 'TA-003',
+    issuer: 'HashiCorp',
+    year: 'Vence em 2028'
+  });
   db.addEducation({
     course: 'Análise e Desenvolvimento de Sistemas',
     institution: 'FIAP',
@@ -98,7 +103,20 @@ test('separates certifications (without seniority level), educations, personal p
   const profile = db.getProfile();
   const tfCert = profile.certificationItems.find((c) => c.name.includes('Terraform Associate'));
   assert.ok(tfCert);
+  assert.equal(tfCert.code, 'TA-003');
+  assert.equal(tfCert.year, '2028');
   assert.equal('level' in (tfCert as unknown as Record<string, unknown>), false);
+
+  const dockerSkill = profile.skills.find((s) => s.name === 'Docker')!;
+  const afterSkillEdit = db.evolveSkill(dockerSkill.id, {
+    name: 'Docker & Containerd',
+    category: 'Containers & Runtime',
+    level: 'solid',
+    honestFramingPt: 'Criação de imagens Docker multi-stage e runtime Containerd.'
+  });
+  const editedSkill = afterSkillEdit.skills.find((s) => s.id === dockerSkill.id);
+  assert.equal(editedSkill?.name, 'Docker & Containerd');
+  assert.equal(editedSkill?.category, 'Containers & Runtime');
   assert.ok(profile.educations.some((e) => e.institution === 'FIAP'));
   assert.ok(profile.personalProjects.some((p) => p.name === 'Homelab GitOps Cluster'));
 

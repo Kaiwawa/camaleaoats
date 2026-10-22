@@ -19,6 +19,7 @@ export interface Skill {
 export interface CertificationItem {
   id: number;
   name: string;
+  code: string;
   issuer: string;
   year: string;
   credentialUrl?: string;

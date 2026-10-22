@@ -69,7 +69,12 @@ html[data-theme="light"] {
 body {
   margin: 0;
   font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background: var(--bg);
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(circle at 15% 25%, rgba(37, 99, 235, 0.16), transparent 42%),
+    radial-gradient(circle at 85% 75%, rgba(124, 58, 237, 0.14), transparent 45%),
+    radial-gradient(circle at 50% 10%, rgba(16, 185, 129, 0.10), transparent 38%);
+  background-attachment: fixed;
   color: var(--text);
   min-height: 100vh;
 }
@@ -133,27 +138,80 @@ body {
   flex-wrap: wrap;
 }
 
-.theme-switcher {
-  display: inline-flex;
-  background: var(--panel-alt);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.theme-btn {
-  background: transparent;
-  border: none;
-  color: var(--muted);
-  padding: 6px 10px;
-  font-size: 12px;
-  font-weight: 600;
+/* Modern Flat Vector Day & Night On/Off Toggle Switch */
+.day-night-switch {
+  position: relative;
+  width: 76px;
+  height: 36px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  padding: 0;
   cursor: pointer;
+  overflow: hidden;
+  background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 60%, #312e81 100%);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.45);
+  transition: background 0.35s ease, border-color 0.35s ease;
+  display: inline-flex;
+  align-items: center;
 }
 
-.theme-btn.active {
-  background: var(--primary);
-  color: #ffffff;
+html[data-theme="light"] .day-night-switch {
+  background: linear-gradient(135deg, #38bdf8 0%, #60a5fa 65%, #93c5fd 100%);
+  border-color: rgba(37, 99, 235, 0.28);
+  box-shadow: inset 0 2px 5px rgba(14, 116, 144, 0.25);
+}
+
+.dn-track-decor {
+  position: absolute;
+  font-size: 11px;
+  line-height: 1;
+  pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.dn-stars {
+  left: 9px;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+html[data-theme="light"] .dn-stars {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.dn-clouds {
+  right: 8px;
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+html[data-theme="light"] .dn-clouds {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.dn-thumb {
+  position: absolute;
+  top: 3px;
+  left: 4px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transform: translateX(38px);
+  transition: transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.3s ease;
+}
+
+html[data-theme="light"] .dn-thumb {
+  transform: translateX(0);
+  background: #fde047;
+  box-shadow: 0 0 10px rgba(250, 204, 21, 0.85);
 }
 
 .btn {
@@ -208,20 +266,68 @@ body {
   font-size: 13.5px;
 }
 
-.toast {
-  background: var(--primary);
+/* Centered Standardized Notification Popup */
+.toast-popup {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 360px;
+  max-width: 90vw;
+  min-height: 112px;
+  background: rgba(17, 24, 39, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(59, 130, 246, 0.55);
+  border-radius: 18px;
+  padding: 18px 22px;
   color: #ffffff;
-  padding: 9px 20px;
-  font-size: 13px;
-  font-weight: 600;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.65);
+  z-index: 3500;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   text-align: center;
+  cursor: pointer;
+  animation: toastPopIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+html[data-theme="light"] .toast-popup {
+  background: rgba(255, 255, 255, 0.94);
+  color: #0f172a;
+  border-color: rgba(37, 99, 235, 0.45);
+  box-shadow: 0 24px 55px rgba(15, 23, 42, 0.24);
+}
+
+.toast-popup-icon {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.toast-popup-text {
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+@keyframes toastPopIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -46%) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
 }
 
 .hidden {
   display: none !important;
 }
 
-/* Kanban Board + Drag & Drop */
+/* Kanban Board + Frosted Glass Transparency/Blur + Drag & Drop */
 .kanban-board {
   display: grid;
   grid-template-columns: repeat(4, minmax(260px, 1fr));
@@ -229,16 +335,32 @@ body {
   padding: 18px 24px;
   height: calc(100vh - 68px);
   overflow-x: auto;
+  background: rgba(15, 23, 42, 0.28);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+html[data-theme="light"] .kanban-board {
+  background: rgba(241, 245, 249, 0.45);
 }
 
 .kanban-col {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  background: rgba(17, 24, 39, 0.62);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 14px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+html[data-theme="light"] .kanban-col {
+  background: rgba(255, 255, 255, 0.66);
+  border-color: rgba(148, 163, 184, 0.38);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
 }
 
 .kanban-col.drag-over {
@@ -396,6 +518,34 @@ body {
 
 .modal-window-md {
   max-width: 640px;
+}
+
+.modal-window-sm {
+  max-width: 580px;
+}
+
+/* Fixed-size responsive Profile Modal so switching tabs never grows/shrinks */
+.modal-window-profile {
+  height: min(690px, 88vh);
+  min-height: min(560px, 84vh);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-window-profile .modal-content-padded {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.modal-window-profile .ptab-panel {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding-right: 6px;
 }
 
 .modal-header {
@@ -773,12 +923,12 @@ select {
 .skill-item {
   background: var(--panel-alt);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 12px;
-  display: grid;
-  grid-template-columns: 160px 175px 1fr auto;
-  gap: 10px;
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  justify-content: space-between;
   align-items: center;
+  gap: 14px;
 }
 
 .list-row-card {

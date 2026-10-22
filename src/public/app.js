@@ -34,19 +34,52 @@ function escapeHtmlClient(str) {
     .replace(/'/g, '&#39;');
 }
 
+let toastTimer = null;
+let initialBrowserThemeApplied = false;
+
 function showToast(msg) {
   const banner = document.getElementById('toast-banner');
-  banner.textContent = msg;
+  const textEl = document.getElementById('toast-banner-text');
+  if (textEl) {
+    textEl.textContent = msg;
+  } else {
+    banner.textContent = msg;
+  }
   banner.classList.remove('hidden');
-  setTimeout(() => banner.classList.add('hidden'), 3500);
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => banner.classList.add('hidden'), 2600);
 }
 
+document.getElementById('toast-banner').addEventListener('click', () => {
+  document.getElementById('toast-banner').classList.add('hidden');
+});
+
 function applyTheme(themeMode) {
-  const mode = themeMode || 'auto';
-  document.documentElement.setAttribute('data-theme', mode);
-  localStorage.setItem('camaleao_theme', mode);
-  document.querySelectorAll('.theme-btn').forEach((btn) => {
-    btn.classList.toggle('active', btn.dataset.themeVal === mode);
+  const resolved =
+    themeMode === 'light' || themeMode === 'dark'
+      ? themeMode
+      : window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches
+      ? 'light'
+      : 'dark';
+  document.documentElement.setAttribute('data-theme', resolved);
+  const isDark = resolved === 'dark';
+  ['btn-theme-toggle', 'btn-theme-toggle-settings'].forEach((id) => {
+    const sw = document.getElementById(id);
+    if (!sw) return;
+    sw.setAttribute('aria-checked', isDark ? 'true' : 'false');
+    const iconEl = sw.querySelector('.dn-thumb-icon');
+    if (iconEl) iconEl.textContent = isDark ? '🌙' : '☀️';
+  });
+}
+
+async function toggleDayNightSwitch() {
+  const current = document.documentElement.getAttribute('data-theme') || 'dark';
+  const next = current === 'dark' ? 'light' : 'dark';
+  applyTheme(next);
+  await fetch('/api/settings', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ theme: next })
   });
 }
 
@@ -58,8 +91,12 @@ async function loadBootstrap() {
   state.settings = data.settings;
   state.agentPrompts = data.agentPrompts || [];
 
-  const savedTheme = localStorage.getItem('camaleao_theme') || state.settings?.theme || 'auto';
-  applyTheme(savedTheme);
+  // Auto mode runs ONLY when the user first opens the site, setting the mode according to the browser's current scheme
+  if (!initialBrowserThemeApplied) {
+    initialBrowserThemeApplied = true;
+    const browserPrefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+    applyTheme(browserPrefersLight ? 'light' : 'dark');
+  }
 
   renderHeader();
   renderKanban();
@@ -85,17 +122,10 @@ function renderHeader() {
   }
 }
 
-// Theme buttons
-document.querySelectorAll('.theme-btn').forEach((btn) => {
-  btn.addEventListener('click', async () => {
-    const theme = btn.dataset.themeVal;
-    applyTheme(theme);
-    await fetch('/api/settings', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ theme })
-    });
-  });
+// Day & Night On/Off Switch buttons
+['btn-theme-toggle', 'btn-theme-toggle-settings'].forEach((id) => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('click', toggleDayNightSwitch);
 });
 
 // Unified Seniority dropdown (filters Kanban & sets scrape seniority)
@@ -484,44 +514,48 @@ function renderProfileModalContent() {
   document.getElementById('prof-title-pt').value = p.titlePt || '';
   document.getElementById('prof-title-en').value = p.titleEn || '';
 
-  // Tab 2: Skills (WITH seniority/familiarity level)
+  // Tab 2: Skills (Read-only card + Pencil button ✏️ that opens the Edit Skill Mini Popup)
+  const LEVEL_BADGES = {
+    evolving: '🟡 Iniciante / Em Evolução',
+    practical: '🟢 Prático / Autônomo',
+    solid: '🔥 Sólido / Avançado'
+  };
   const skillsEl = document.getElementById('skills-evolution-list');
   skillsEl.innerHTML = '';
   for (const s of p.skills) {
     const row = document.createElement('div');
     row.className = 'skill-item';
     row.innerHTML = `
-      <div>
-        <strong>${escapeHtmlClient(s.name)}</strong>
-        <div style="font-size:11px; color:var(--muted);">${escapeHtmlClient(s.category)}</div>
+      <div style="flex:1; min-width:0;">
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <strong>${escapeHtmlClient(s.name)}</strong>
+          <span class="tag-chip">${escapeHtmlClient(s.category)}</span>
+          <span class="seniority-tag">${escapeHtmlClient(LEVEL_BADGES[s.level] || s.level)}</span>
+        </div>
+        <div style="font-size:12px; color:var(--muted); margin-top:4px; line-height:1.4;">
+          🇧🇷 ${escapeHtmlClient(s.honestFramingPt)}
+        </div>
       </div>
-      <select data-skill-level="${s.id}">
-        <option value="evolving" ${s.level === 'evolving' ? 'selected' : ''}>🟡 Iniciante / Em Evolução</option>
-        <option value="practical" ${s.level === 'practical' ? 'selected' : ''}>🟢 Prático / Autônomo</option>
-        <option value="solid" ${s.level === 'solid' ? 'selected' : ''}>🔥 Sólido / Avançado</option>
-      </select>
-      <input type="text" data-skill-pt="${s.id}" value="${escapeHtmlClient(s.honestFramingPt)}" />
-      <div style="display:flex; gap:6px;">
-        <button type="button" class="btn btn-xs btn-primary" data-save-skill="${s.id}">Salvar</button>
-        <button type="button" class="btn btn-xs btn-danger" data-del-skill="${s.id}">✕</button>
+      <div style="display:flex; gap:6px; flex-shrink:0;">
+        <button type="button" class="btn btn-xs btn-secondary" data-edit-skill="${s.id}" title="Editar Habilidade">✏️</button>
+        <button type="button" class="btn btn-xs btn-danger" data-del-skill="${s.id}" title="Remover Habilidade">✕</button>
       </div>
     `;
     skillsEl.appendChild(row);
   }
 
-  skillsEl.querySelectorAll('[data-save-skill]').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const id = Number(btn.dataset.saveSkill);
-      const level = skillsEl.querySelector(`[data-skill-level="${id}"]`).value;
-      const honestFramingPt = skillsEl.querySelector(`[data-skill-pt="${id}"]`).value;
-      await fetch('/api/profile/evolve', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ skillId: id, level, honestFramingPt })
-      });
-      await loadBootstrap();
-      renderProfileModalContent();
-      showToast('Habilidade atualizada!');
+  skillsEl.querySelectorAll('[data-edit-skill]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = Number(btn.dataset.editSkill);
+      const skill = (state.profile?.skills || []).find((sk) => sk.id === id);
+      if (!skill) return;
+      document.getElementById('edit-skill-id').value = String(skill.id);
+      document.getElementById('edit-skill-name').value = skill.name || '';
+      document.getElementById('edit-skill-cat').value = skill.category || '';
+      document.getElementById('edit-skill-level').value = skill.level || 'practical';
+      document.getElementById('edit-skill-pt').value = skill.honestFramingPt || '';
+      document.getElementById('edit-skill-en').value = skill.honestFramingEn || '';
+      document.getElementById('skill-edit-modal-backdrop').classList.remove('hidden');
     });
   });
 
@@ -539,7 +573,7 @@ function renderProfileModalContent() {
     });
   });
 
-  // Tab 3: Certifications (NO seniority level)
+  // Tab 3: Certifications (NO seniority level — Name + Code + Issuer + Expiration Year)
   const certsEl = document.getElementById('certs-list');
   certsEl.innerHTML = '';
   for (const c of p.certificationItems || []) {
@@ -547,8 +581,14 @@ function renderProfileModalContent() {
     row.className = 'list-row-card';
     row.innerHTML = `
       <div>
-        <strong>🏅 ${escapeHtmlClient(c.name)}</strong>
-        <div style="font-size:12px; color:var(--muted);">Emissor: ${escapeHtmlClient(c.issuer || 'Oficial')} ${c.year ? `• Ano: ${escapeHtmlClient(c.year)}` : ''}</div>
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <strong>🏅 ${escapeHtmlClient(c.name)}</strong>
+          ${c.code ? `<span class="seniority-tag">Código: ${escapeHtmlClient(c.code)}</span>` : ''}
+        </div>
+        <div style="font-size:12px; color:var(--muted); margin-top:3px;">
+          Emissor: ${escapeHtmlClient(c.issuer || 'Oficial')}
+          ${c.year ? ` • Vencimento: <strong>${escapeHtmlClient(c.year)}</strong>` : ''}
+        </div>
       </div>
       <button type="button" class="btn btn-xs btn-danger" data-del-cert="${c.id}">Remover</button>
     `;
@@ -750,22 +790,63 @@ document.getElementById('btn-add-skill').addEventListener('click', async () => {
   showToast(`Habilidade "${newSkillName}" adicionada!`);
 });
 
+// Mini Popup handlers for Editing an existing Skill without deleting
+document.getElementById('btn-close-skill-edit-modal').addEventListener('click', () => {
+  document.getElementById('skill-edit-modal-backdrop').classList.add('hidden');
+});
+document.getElementById('btn-cancel-skill-edit').addEventListener('click', () => {
+  document.getElementById('skill-edit-modal-backdrop').classList.add('hidden');
+});
+document.getElementById('btn-save-skill-edit').addEventListener('click', async () => {
+  const skillId = Number(document.getElementById('edit-skill-id').value);
+  if (!skillId) return;
+  const name = document.getElementById('edit-skill-name').value.trim();
+  const category = document.getElementById('edit-skill-cat').value.trim() || 'DevOps / Cloud';
+  const level = document.getElementById('edit-skill-level').value;
+  const honestFramingPt = document.getElementById('edit-skill-pt').value.trim();
+  const honestFramingEn = document.getElementById('edit-skill-en').value.trim();
+
+  await fetch('/api/profile/evolve', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      skillId,
+      name,
+      category,
+      level,
+      honestFramingPt,
+      honestFramingEn
+    })
+  });
+  document.getElementById('skill-edit-modal-backdrop').classList.add('hidden');
+  await loadBootstrap();
+  renderProfileModalContent();
+  showToast(`Habilidade "${name}" editada e salva com sucesso!`);
+});
+
 document.getElementById('btn-add-cert').addEventListener('click', async () => {
   const name = document.getElementById('new-cert-name').value.trim();
+  const code = document.getElementById('new-cert-code').value.trim().toUpperCase();
   if (!name) return;
   const issuer = document.getElementById('new-cert-issuer').value.trim();
-  const year = document.getElementById('new-cert-year').value.trim();
+  const year = document.getElementById('new-cert-year').value.replace(/\D/g, '').slice(0, 4);
+  if (year && year.length !== 4) {
+    showToast('⚠️ O ano de vencimento deve conter 4 dígitos numéricos (Ex: 2028).');
+    document.getElementById('new-cert-year').focus();
+    return;
+  }
   await fetch('/api/profile/certifications', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ name, issuer, year })
+    body: JSON.stringify({ name, code, issuer, year })
   });
   document.getElementById('new-cert-name').value = '';
+  document.getElementById('new-cert-code').value = '';
   document.getElementById('new-cert-issuer').value = '';
   document.getElementById('new-cert-year').value = '';
   await loadBootstrap();
   renderProfileModalContent();
-  showToast('Certificação adicionada!');
+  showToast('Certificação adicionada com sucesso!');
 });
 
 document.getElementById('btn-add-edu').addEventListener('click', async () => {
