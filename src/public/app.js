@@ -389,6 +389,18 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+// Close any popup/modal when clicking outside the modal window (on the backdrop), just like ESC
+document.querySelectorAll('.modal-backdrop').forEach((backdropEl) => {
+  backdropEl.addEventListener('mousedown', (e) => {
+    if (e.target === backdropEl) {
+      backdropEl.classList.add('hidden');
+      if (backdropEl.id === 'delete-confirm-modal-backdrop') {
+        pendingDeleteConfirmAction = null;
+      }
+    }
+  });
+});
+
 document.querySelectorAll('#confirm-seniority-checks input[name="confirm-sen-check"]').forEach((chk) => {
   chk.addEventListener('change', () => {
     const vals = Array.from(
@@ -654,43 +666,127 @@ function renderKanban() {
   }
 }
 
-// Setup column drop zones once
+// Optimistic, zero-latency Kanban move helper (updates UI in <1ms and syncs to backend in background queue)
+let moveSyncChain = Promise.resolve();
+
+function updateColumnCountBadges() {
+  const cols = ['abertas', 'em_processo', 'sem_sucesso', 'ruins'];
+  for (const col of cols) {
+    const container = document.getElementById(`col-${col}`);
+    const badge = document.getElementById(`count-${col}`);
+    if (container && badge) {
+      badge.textContent = String(container.children.length);
+    }
+  }
+}
+
+function moveJobOptimistically(jobId, targetStatus, reason, closeModalAfter = false) {
+  const job = state.jobs.find((j) => j.id === jobId);
+  if (!job || job.status === targetStatus) {
+    if (closeModalAfter) {
+      document.getElementById('job-modal-backdrop')?.classList.add('hidden');
+    }
+    return;
+  }
+
+  job.status = targetStatus;
+  if (reason) job.rejectionReason = reason;
+
+  // Move the DOM card directly if present so we don't rebuild the entire Kanban DOM on every drag
+  const existingCard = document.querySelector(`.job-card[data-job-id="${jobId}"]`);
+  const targetContainer = document.getElementById(`col-${targetStatus}`);
+
+  const colFilter = state.columnFilters[targetStatus] || { seniorities: [], workModes: [], location: 'all' };
+  const passesTargetFilter =
+    (colFilter.seniorities.length === 0 || colFilter.seniorities.includes(job.seniority)) &&
+    matchesModalityFilter(job, colFilter.workModes) &&
+    matchesLocationFilter(job, colFilter.location) &&
+    (targetStatus === 'abertas' ? matchesDateFilter(job, state.datePosted) : true);
+
+  if (existingCard && targetContainer) {
+    existingCard.classList.remove('dragging');
+    if (passesTargetFilter) {
+      targetContainer.prepend(existingCard);
+      existingCard.classList.remove('card-settled');
+      void existingCard.offsetWidth;
+      existingCard.classList.add('card-settled');
+    } else {
+      existingCard.remove();
+    }
+    updateColumnCountBadges();
+  } else {
+    renderKanban();
+  }
+
+  if (closeModalAfter) {
+    document.getElementById('job-modal-backdrop')?.classList.add('hidden');
+  }
+
+  const normalizedName = KANBAN_STATUS_LABELS[targetStatus] || targetStatus;
+  showToast(
+    targetStatus === 'ruins'
+      ? 'Vaga movida para Vagas Ruins — o filtro aprendeu seu gosto!'
+      : `Vaga movida para ${normalizedName}!`
+  );
+
+  // Queue network persistence sequentially so rapid drags never lag or race
+  moveSyncChain = moveSyncChain
+    .then(() =>
+      fetch(`/api/jobs/${jobId}/move`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ status: targetStatus, reason })
+      })
+    )
+    .catch(() => {
+      // Fallback re-sync only if network error occurs
+      loadBootstrap();
+    });
+}
+
+// Setup column drop zones once (throttled class toggling to prevent dragover lag)
+let activeDragJobId = null;
+
+document.addEventListener('dragstart', (ev) => {
+  const card = ev.target.closest?.('.job-card');
+  if (card && card.dataset.jobId) {
+    activeDragJobId = Number(card.dataset.jobId);
+  }
+});
+
+document.addEventListener('dragend', () => {
+  activeDragJobId = null;
+});
+
 document.querySelectorAll('.kanban-col').forEach((colEl) => {
   const targetStatus = colEl.dataset.status;
 
   colEl.addEventListener('dragover', (ev) => {
     ev.preventDefault();
     ev.dataTransfer.dropEffect = 'move';
-    colEl.classList.add('drag-over');
+    if (!colEl.classList.contains('drag-over')) {
+      colEl.classList.add('drag-over');
+    }
   });
 
-  colEl.addEventListener('dragleave', () => {
-    colEl.classList.remove('drag-over');
+  colEl.addEventListener('dragleave', (ev) => {
+    if (!ev.relatedTarget || !colEl.contains(ev.relatedTarget)) {
+      colEl.classList.remove('drag-over');
+    }
   });
 
-  colEl.addEventListener('drop', async (ev) => {
+  colEl.addEventListener('drop', (ev) => {
     ev.preventDefault();
     colEl.classList.remove('drag-over');
-    const jobId = Number(ev.dataTransfer.getData('text/plain'));
+    const rawId = ev.dataTransfer.getData('text/plain');
+    const jobId = Number(rawId) || activeDragJobId;
     if (!jobId || !targetStatus) return;
 
-    const job = state.jobs.find((j) => j.id === jobId);
-    if (!job || job.status === targetStatus) return;
-
-    await fetch(`/api/jobs/${jobId}/move`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        status: targetStatus,
-        reason: targetStatus === 'ruins' ? 'Arrastada para Vagas Ruins no Kanban' : ''
-      })
-    });
-    await loadBootstrap();
-    const normalizedName = KANBAN_STATUS_LABELS[targetStatus] || targetStatus;
-    showToast(
-      targetStatus === 'ruins'
-        ? 'Vaga movida para Vagas Ruins — o filtro aprendeu seu gosto!'
-        : `Vaga movida para ${normalizedName}!`
+    moveJobOptimistically(
+      jobId,
+      targetStatus,
+      targetStatus === 'ruins' ? 'Arrastada para Vagas Ruins no Kanban' : '',
+      false
     );
   });
 });
@@ -816,19 +912,11 @@ document.querySelectorAll('[data-copy-target]').forEach((btn) => {
 });
 
 document.querySelectorAll('[data-move]').forEach((btn) => {
-  btn.addEventListener('click', async () => {
+  btn.addEventListener('click', () => {
     if (!state.activeJobId) return;
     const status = btn.dataset.move;
     const reason = status === 'ruins' ? 'Descartada pelo usuário no popup' : '';
-    await fetch(`/api/jobs/${state.activeJobId}/move`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ status, reason })
-    });
-    await loadBootstrap();
-    document.getElementById('job-modal-backdrop').classList.add('hidden');
-    const normalizedName = KANBAN_STATUS_LABELS[status] || status;
-    showToast(status === 'ruins' ? 'Vaga movida para Vagas Ruins — o filtro aprendeu seu gosto!' : `Vaga movida para ${normalizedName}!`);
+    moveJobOptimistically(state.activeJobId, status, reason, true);
   });
 });
 
