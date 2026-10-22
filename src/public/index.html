@@ -12,16 +12,18 @@
     <div class="brand-group">
       <div class="logo">🦎 Camaleão<span>ATS</span></div>
 
-      <!-- Senioridade Desejada (Caixas de Seleção / Checkboxes) -->
-      <div class="filter-group" id="topbar-seniority-group">
+      <!-- Senioridade Desejada (Caixas de Seleção dentro de Menu Suspenso) -->
+      <div class="filter-group check-dropdown" id="topbar-seniority-group">
         <span class="filter-label">Senioridade:</span>
-        <div class="checkbox-pills" id="filter-seniority-checks" role="group" aria-label="Senioridade desejada">
-          <label class="check-pill"><input type="checkbox" name="sen-check" value="estagio" /><span>Estágio</span></label>
-          <label class="check-pill"><input type="checkbox" name="sen-check" value="junior" /><span>Júnior</span></label>
-          <label class="check-pill"><input type="checkbox" name="sen-check" value="junior_pleno" /><span>Jr / Pleno</span></label>
-          <label class="check-pill"><input type="checkbox" name="sen-check" value="pleno" /><span>Pleno</span></label>
-          <label class="check-pill"><input type="checkbox" name="sen-check" value="senior" /><span>Sênior</span></label>
-          <label class="check-pill"><input type="checkbox" name="sen-check" value="especialista" /><span>Especialista</span></label>
+        <button type="button" class="check-dropdown-toggle" id="btn-seniority-dropdown" aria-expanded="false">
+          <span id="label-seniority-dropdown">Todas</span> ▾
+        </button>
+        <div class="check-dropdown-menu hidden" id="filter-seniority-checks" role="group" aria-label="Senioridade desejada">
+          <label class="check-menu-item"><input type="checkbox" name="sen-check" value="estagio" /><span>Estágio / Trainee</span></label>
+          <label class="check-menu-item"><input type="checkbox" name="sen-check" value="junior" /><span>Júnior</span></label>
+          <label class="check-menu-item"><input type="checkbox" name="sen-check" value="pleno" /><span>Pleno</span></label>
+          <label class="check-menu-item"><input type="checkbox" name="sen-check" value="senior" /><span>Sênior</span></label>
+          <label class="check-menu-item"><input type="checkbox" name="sen-check" value="especialista" /><span>Especialista / Staff</span></label>
         </div>
       </div>
 
@@ -34,27 +36,16 @@
         </select>
       </div>
 
-      <!-- Modalidade (Caixas de Seleção / Checkboxes: Remoto, Híbrido, Presencial) -->
-      <div class="filter-group" id="topbar-modality-group">
+      <!-- Modalidade (Caixas de Seleção dentro de Menu Suspenso: Remoto, Híbrido, Presencial) -->
+      <div class="filter-group check-dropdown" id="topbar-modality-group">
         <span class="filter-label">Modalidade:</span>
-        <div class="checkbox-pills" id="filter-modality-checks" role="group" aria-label="Modalidade da vaga">
-          <label class="check-pill"><input type="checkbox" name="mod-check" value="remoto" checked /><span>Remoto</span></label>
-          <label class="check-pill"><input type="checkbox" name="mod-check" value="hibrido" /><span>Híbrido</span></label>
-          <label class="check-pill"><input type="checkbox" name="mod-check" value="presencial" /><span>Presencial</span></label>
-        </div>
-      </div>
-
-      <!-- Botão de Filtros por Data de Postagem -->
-      <div class="filter-group date-filter-wrapper">
-        <button type="button" class="btn btn-secondary btn-sm" id="btn-date-filter" title="Filtrar vagas por data de postagem">
-          📅 Postagem: <span id="date-filter-label">Qualquer data</span> ▾
+        <button type="button" class="check-dropdown-toggle" id="btn-modality-dropdown" aria-expanded="false">
+          <span id="label-modality-dropdown">Remoto</span> ▾
         </button>
-        <div id="date-filter-popover" class="date-filter-popover hidden">
-          <button type="button" class="date-opt active" data-date="all">📅 Qualquer data</button>
-          <button type="button" class="date-opt" data-date="24h">⚡ Últimas 24 horas</button>
-          <button type="button" class="date-opt" data-date="3d">🕒 Últimos 3 dias</button>
-          <button type="button" class="date-opt" data-date="7d">📆 Última semana (7 dias)</button>
-          <button type="button" class="date-opt" data-date="30d">🗓️ Último mês (30 dias)</button>
+        <div class="check-dropdown-menu hidden" id="filter-modality-checks" role="group" aria-label="Modalidade da vaga">
+          <label class="check-menu-item"><input type="checkbox" name="mod-check" value="remoto" checked /><span>Remoto</span></label>
+          <label class="check-menu-item"><input type="checkbox" name="mod-check" value="hibrido" /><span>Híbrido</span></label>
+          <label class="check-menu-item"><input type="checkbox" name="mod-check" value="presencial" /><span>Presencial</span></label>
         </div>
       </div>
     </div>
@@ -85,7 +76,21 @@
     <section class="kanban-col kanban-col-wide" data-status="abertas">
       <div class="kanban-col-header">
         <span>📥 Vagas Abertas</span>
-        <span class="count-badge" id="count-abertas">0</span>
+        <div class="kanban-header-controls">
+          <div class="date-filter-wrapper">
+            <button type="button" class="kanban-date-btn" id="btn-date-filter" title="Filtrar visualização por horário/data de postagem (somente leitura)">
+              🕒 <span id="date-filter-label">Qualquer horário</span> ▾
+            </button>
+            <div id="date-filter-popover" class="date-filter-popover hidden">
+              <button type="button" class="date-opt active" data-date="all">🕒 Qualquer horário</button>
+              <button type="button" class="date-opt" data-date="24h">⚡ Últimas 24 horas</button>
+              <button type="button" class="date-opt" data-date="3d">📅 Últimos 3 dias</button>
+              <button type="button" class="date-opt" data-date="7d">📆 Última semana (7d)</button>
+              <button type="button" class="date-opt" data-date="30d">🗓️ Último mês (30d)</button>
+            </div>
+          </div>
+          <span class="count-badge" id="count-abertas">0</span>
+        </div>
       </div>
       <div class="kanban-cards" id="col-abertas" data-drop-status="abertas"></div>
     </section>
@@ -134,7 +139,6 @@
             <select id="modal-job-seniority" class="select-inline">
               <option value="estagio">Estágio / Trainee</option>
               <option value="junior">Júnior</option>
-              <option value="junior_pleno">Júnior / Pleno</option>
               <option value="pleno">Pleno</option>
               <option value="senior">Sênior</option>
               <option value="especialista">Especialista / Staff</option>
@@ -634,10 +638,9 @@
           <div>
             <label>Senioridade da Vaga</label>
             <select id="ingest-seniority">
-              <option value="junior_pleno">Júnior / Pleno</option>
+              <option value="pleno">Pleno</option>
               <option value="estagio">Estágio / Trainee</option>
               <option value="junior">Júnior</option>
-              <option value="pleno">Pleno</option>
               <option value="senior">Sênior</option>
               <option value="especialista">Especialista / Staff</option>
             </select>
@@ -935,19 +938,20 @@
             🎯 Título Profissional que direciona a pesquisa: <strong id="confirm-scrape-title" style="color: var(--text);">DevOps Engineer</strong>
           </div>
 
-          <div style="margin-bottom: 12px;">
-            <label>Senioridade Desejada (Caixas de Seleção)</label>
-            <div class="checkbox-pills" id="confirm-seniority-checks" style="margin-top: 6px;">
-              <label class="check-pill"><input type="checkbox" name="confirm-sen-check" value="estagio" /><span>Estágio / Trainee</span></label>
-              <label class="check-pill"><input type="checkbox" name="confirm-sen-check" value="junior" /><span>Júnior</span></label>
-              <label class="check-pill"><input type="checkbox" name="confirm-sen-check" value="junior_pleno" /><span>Júnior / Pleno</span></label>
-              <label class="check-pill"><input type="checkbox" name="confirm-sen-check" value="pleno" /><span>Pleno</span></label>
-              <label class="check-pill"><input type="checkbox" name="confirm-sen-check" value="senior" /><span>Sênior</span></label>
-              <label class="check-pill"><input type="checkbox" name="confirm-sen-check" value="especialista" /><span>Especialista / Staff</span></label>
+          <div class="form-grid-3">
+            <div class="check-dropdown" id="confirm-seniority-group">
+              <label>Senioridade Desejada</label>
+              <button type="button" class="check-dropdown-toggle check-dropdown-full" id="btn-confirm-seniority-dropdown" aria-expanded="false">
+                <span id="label-confirm-seniority-dropdown">Todas</span> ▾
+              </button>
+              <div class="check-dropdown-menu hidden" id="confirm-seniority-checks" role="group" aria-label="Senioridade desejada">
+                <label class="check-menu-item"><input type="checkbox" name="confirm-sen-check" value="estagio" /><span>Estágio / Trainee</span></label>
+                <label class="check-menu-item"><input type="checkbox" name="confirm-sen-check" value="junior" /><span>Júnior</span></label>
+                <label class="check-menu-item"><input type="checkbox" name="confirm-sen-check" value="pleno" /><span>Pleno</span></label>
+                <label class="check-menu-item"><input type="checkbox" name="confirm-sen-check" value="senior" /><span>Sênior</span></label>
+                <label class="check-menu-item"><input type="checkbox" name="confirm-sen-check" value="especialista" /><span>Especialista / Staff</span></label>
+              </div>
             </div>
-          </div>
-
-          <div class="form-grid-2">
             <div>
               <label for="confirm-scrape-location">Local</label>
               <select id="confirm-scrape-location">
@@ -955,12 +959,15 @@
                 <option value="global">🌐 Global / LatAm</option>
               </select>
             </div>
-            <div>
-              <label>Modalidade (Caixas de Seleção)</label>
-              <div class="checkbox-pills" id="confirm-modality-checks" style="margin-top: 4px;">
-                <label class="check-pill"><input type="checkbox" name="confirm-mod-check" value="remoto" checked /><span>Remoto</span></label>
-                <label class="check-pill"><input type="checkbox" name="confirm-mod-check" value="hibrido" /><span>Híbrido</span></label>
-                <label class="check-pill"><input type="checkbox" name="confirm-mod-check" value="presencial" /><span>Presencial</span></label>
+            <div class="check-dropdown" id="confirm-modality-group">
+              <label>Modalidade</label>
+              <button type="button" class="check-dropdown-toggle check-dropdown-full" id="btn-confirm-modality-dropdown" aria-expanded="false">
+                <span id="label-confirm-modality-dropdown">Remoto</span> ▾
+              </button>
+              <div class="check-dropdown-menu hidden" id="confirm-modality-checks" role="group" aria-label="Modalidade da vaga">
+                <label class="check-menu-item"><input type="checkbox" name="confirm-mod-check" value="remoto" checked /><span>Remoto</span></label>
+                <label class="check-menu-item"><input type="checkbox" name="confirm-mod-check" value="hibrido" /><span>Híbrido</span></label>
+                <label class="check-menu-item"><input type="checkbox" name="confirm-mod-check" value="presencial" /><span>Presencial</span></label>
               </div>
             </div>
           </div>

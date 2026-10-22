@@ -34,10 +34,9 @@ export function inferJobSeniority(title: string, description = ''): JobSeniority
   if (/\b(est[áa]gio|intern|trainee)\b/i.test(sample)) return 'estagio';
   if (/\b(staff|principal|especialista|lead|architect)\b/i.test(sample)) return 'especialista';
   if (/\b(s[êe]nior|sr\.?)\b/i.test(sample) && !/\b(pleno|j[úu]nior|jr)\b/i.test(sample)) return 'senior';
-  if (/\b(jr|j[úu]nior)\b/i.test(sample) && /\b(pleno|mid)\b/i.test(sample)) return 'junior_pleno';
-  if (/\b(jr|j[úu]nior|entry)\b/i.test(sample)) return 'junior';
   if (/\b(pleno|mid-level|mid)\b/i.test(sample)) return 'pleno';
-  return 'junior_pleno';
+  if (/\b(jr|j[úu]nior|entry)\b/i.test(sample)) return 'junior';
+  return 'pleno';
 }
 
 export class AppDatabase {
@@ -924,6 +923,8 @@ export class AppDatabase {
 
   private mapJobRow(r: Record<string, unknown>): Job {
     const createdAt = String(r.created_at);
+    const rawSen = String(r.seniority || 'pleno');
+    const normalizedSen: JobSeniority = rawSen === 'junior_pleno' ? 'pleno' : (rawSen as JobSeniority);
     return {
       id: Number(r.id),
       title: String(r.title),
@@ -931,7 +932,7 @@ export class AppDatabase {
       url: String(r.url),
       platform: String(r.platform),
       location: String(r.location),
-      seniority: (String(r.seniority || 'junior_pleno') as JobSeniority),
+      seniority: normalizedSen,
       description: String(r.description),
       language: (String(r.language || 'pt-BR') as Language),
       status: String(r.status) as KanbanStatus,

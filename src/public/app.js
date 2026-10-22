@@ -15,19 +15,45 @@ let state = {
 const SENIORITY_LABELS = {
   estagio: 'Estágio / Trainee',
   junior: 'Júnior',
-  junior_pleno: 'Júnior / Pleno',
   pleno: 'Pleno',
   senior: 'Sênior',
   especialista: 'Especialista / Staff'
 };
 
+const SENIORITY_SHORT_LABELS = {
+  estagio: 'Estágio',
+  junior: 'Júnior',
+  pleno: 'Pleno',
+  senior: 'Sênior',
+  especialista: 'Especialista'
+};
+
+const MODALITY_LABELS = {
+  remoto: 'Remoto',
+  hibrido: 'Híbrido',
+  presencial: 'Presencial'
+};
+
 const DATE_POSTED_LABELS = {
-  all: 'Qualquer data',
+  all: 'Qualquer horário',
   '24h': 'Últimas 24h',
   '3d': 'Últimos 3 dias',
   '7d': 'Última semana',
   '30d': 'Último mês'
 };
+
+function formatSeniorityTriggerLabel(values) {
+  if (!values || values.length === 0 || values.length === 5) return 'Todas';
+  const names = values.map((v) => SENIORITY_SHORT_LABELS[v] || v);
+  if (names.length <= 2) return names.join(', ');
+  return `${names.length} selecionadas`;
+}
+
+function formatModalityTriggerLabel(values) {
+  if (!values || values.length === 0) return 'Remoto';
+  if (values.length === 3) return 'Todas (3)';
+  return values.map((v) => MODALITY_LABELS[v] || v).join(', ');
+}
 
 function buildLocationDisplay(locationFilter, workModes) {
   const locPt = locationFilter === 'global' ? 'Global / LatAm' : 'Brasil';
@@ -157,11 +183,54 @@ function renderHeader() {
     chk.checked = state.selectedSeniorities.includes(chk.value);
   });
 
+  const senLabelEl = document.getElementById('label-seniority-dropdown');
+  if (senLabelEl) senLabelEl.textContent = formatSeniorityTriggerLabel(state.selectedSeniorities);
+
+  const modLabelEl = document.getElementById('label-modality-dropdown');
+  if (modLabelEl) modLabelEl.textContent = formatModalityTriggerLabel(state.workModes);
+
   const dateLabelEl = document.getElementById('date-filter-label');
   if (dateLabelEl) {
-    dateLabelEl.textContent = DATE_POSTED_LABELS[state.datePosted] || 'Qualquer data';
+    dateLabelEl.textContent = DATE_POSTED_LABELS[state.datePosted] || 'Qualquer horário';
   }
 }
+
+function closeAllDropdownMenus() {
+  document.querySelectorAll('.check-dropdown-menu').forEach((menu) => menu.classList.add('hidden'));
+  document.querySelectorAll('.check-dropdown-toggle').forEach((btn) => btn.setAttribute('aria-expanded', 'false'));
+}
+
+function bindCheckDropdown(toggleBtnId, menuId) {
+  const btn = document.getElementById(toggleBtnId);
+  const menu = document.getElementById(menuId);
+  if (!btn || !menu) return;
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isHidden = menu.classList.contains('hidden');
+    closeAllDropdownMenus();
+    document.getElementById('date-filter-popover')?.classList.add('hidden');
+    if (isHidden) {
+      menu.classList.remove('hidden');
+      btn.setAttribute('aria-expanded', 'true');
+    }
+  });
+
+  menu.addEventListener('click', (e) => {
+    e.stopPropagation();
+  });
+}
+
+bindCheckDropdown('btn-seniority-dropdown', 'filter-seniority-checks');
+bindCheckDropdown('btn-modality-dropdown', 'filter-modality-checks');
+bindCheckDropdown('btn-confirm-seniority-dropdown', 'confirm-seniority-checks');
+bindCheckDropdown('btn-confirm-modality-dropdown', 'confirm-modality-checks');
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.check-dropdown')) {
+    closeAllDropdownMenus();
+  }
+});
 
 // Day & Night On/Off Switch button (Landing Page only)
 const themeBtnEl = document.getElementById('btn-theme-toggle');
@@ -172,6 +241,7 @@ document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   document.getElementById('toast-banner')?.classList.add('hidden');
   document.getElementById('date-filter-popover')?.classList.add('hidden');
+  closeAllDropdownMenus();
 
   const miniModals = [
     'scrape-confirm-modal-backdrop',
@@ -211,7 +281,29 @@ document.querySelectorAll('#filter-seniority-checks input[name="sen-check"]').fo
     state.selectedSeniorities = Array.from(
       document.querySelectorAll('#filter-seniority-checks input[name="sen-check"]:checked')
     ).map((el) => el.value);
+    const senLabelEl = document.getElementById('label-seniority-dropdown');
+    if (senLabelEl) senLabelEl.textContent = formatSeniorityTriggerLabel(state.selectedSeniorities);
     renderKanban();
+  });
+});
+
+document.querySelectorAll('#confirm-seniority-checks input[name="confirm-sen-check"]').forEach((chk) => {
+  chk.addEventListener('change', () => {
+    const vals = Array.from(
+      document.querySelectorAll('#confirm-seniority-checks input[name="confirm-sen-check"]:checked')
+    ).map((el) => el.value);
+    const el = document.getElementById('label-confirm-seniority-dropdown');
+    if (el) el.textContent = formatSeniorityTriggerLabel(vals);
+  });
+});
+
+document.querySelectorAll('#confirm-modality-checks input[name="confirm-mod-check"]').forEach((chk) => {
+  chk.addEventListener('change', () => {
+    const vals = Array.from(
+      document.querySelectorAll('#confirm-modality-checks input[name="confirm-mod-check"]:checked')
+    ).map((el) => el.value);
+    const el = document.getElementById('label-confirm-modality-dropdown');
+    if (el) el.textContent = formatModalityTriggerLabel(vals);
   });
 });
 
@@ -249,18 +341,21 @@ document.querySelectorAll('#filter-modality-checks input[name="mod-check"]').for
       return;
     }
     state.workModes = checked;
+    const modLabelEl = document.getElementById('label-modality-dropdown');
+    if (modLabelEl) modLabelEl.textContent = formatModalityTriggerLabel(state.workModes);
     renderKanban();
     await persistLocationAndModality();
   });
 });
 
-// Date Posted Filter Button & Popover
+// Read-only Time/Date Filter inside Kanban Header (next to count-abertas)
 const dateFilterBtn = document.getElementById('btn-date-filter');
 const dateFilterPopover = document.getElementById('date-filter-popover');
 
 if (dateFilterBtn && dateFilterPopover) {
   dateFilterBtn.addEventListener('click', (e) => {
     e.stopPropagation();
+    closeAllDropdownMenus();
     dateFilterPopover.classList.toggle('hidden');
   });
 
@@ -270,10 +365,10 @@ if (dateFilterBtn && dateFilterPopover) {
       document.querySelectorAll('#date-filter-popover .date-opt').forEach((b) =>
         b.classList.toggle('active', b === optBtn)
       );
-      document.getElementById('date-filter-label').textContent = DATE_POSTED_LABELS[state.datePosted] || 'Qualquer data';
+      document.getElementById('date-filter-label').textContent = DATE_POSTED_LABELS[state.datePosted] || 'Qualquer horário';
       dateFilterPopover.classList.add('hidden');
       renderKanban();
-      showToast(`Filtro de data aplicado: ${DATE_POSTED_LABELS[state.datePosted]}`);
+      showToast(`Visualização do Kanban filtrada por horário: ${DATE_POSTED_LABELS[state.datePosted]}`);
     });
   });
 
@@ -354,7 +449,7 @@ function renderKanban() {
         recruiterBadge = `<div class="recruiter-done-badge">✅ DM Completa Enviada (${escapeHtmlClient(job.recruiterName || 'Recruiter')})</div>`;
       }
 
-      const seniorityLabel = SENIORITY_LABELS[job.seniority] || 'Júnior / Pleno';
+      const seniorityLabel = SENIORITY_LABELS[job.seniority] || 'Pleno';
       const postedBadge = formatPostedDateBadge(job.postedAt || job.createdAt);
 
       card.innerHTML = `
@@ -433,7 +528,8 @@ async function openJobModal(jobId, forcedLang) {
   document.getElementById('modal-job-platform').textContent = job.platform;
   document.getElementById('modal-job-company').textContent = job.company;
   document.getElementById('modal-job-location').textContent = job.location;
-  document.getElementById('modal-job-seniority').value = job.seniority || 'junior_pleno';
+  document.getElementById('modal-job-seniority').value =
+    job.seniority && job.seniority !== 'junior_pleno' ? job.seniority : 'pleno';
   document.getElementById('modal-job-url').href = job.url;
 
   document.getElementById('btn-lang-pt').classList.toggle('active', state.activeLang === 'pt-BR');
@@ -610,8 +706,7 @@ async function executeJobScrape() {
       body: JSON.stringify({
         seniorities: state.selectedSeniorities,
         locationFilter: state.locationFilter,
-        workModes: state.workModes,
-        datePosted: state.datePosted
+        workModes: state.workModes
       })
     });
     const data = await res.json();
@@ -635,6 +730,10 @@ document.getElementById('btn-scrape').addEventListener('click', async () => {
     document.querySelectorAll('#confirm-modality-checks input[name="confirm-mod-check"]').forEach((chk) => {
       chk.checked = state.workModes.includes(chk.value);
     });
+    const confSenLabel = document.getElementById('label-confirm-seniority-dropdown');
+    if (confSenLabel) confSenLabel.textContent = formatSeniorityTriggerLabel(state.selectedSeniorities);
+    const confModLabel = document.getElementById('label-confirm-modality-dropdown');
+    if (confModLabel) confModLabel.textContent = formatModalityTriggerLabel(state.workModes);
     document.getElementById('scrape-confirm-modal-backdrop').classList.remove('hidden');
     return;
   }

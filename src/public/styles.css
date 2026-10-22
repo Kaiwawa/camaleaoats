@@ -133,46 +133,85 @@ body {
   white-space: nowrap;
 }
 
-.checkbox-pills {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  flex-wrap: wrap;
+.check-dropdown {
+  position: relative;
 }
 
-.check-pill {
+.check-dropdown-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 4px 9px;
-  border-radius: 7px;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 11px;
+  border-radius: 8px;
   background: var(--panel-alt);
   border: 1px solid var(--border);
   color: var(--text);
-  font-size: 11.5px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.14s ease, background 0.14s ease;
+}
+
+.check-dropdown-toggle:hover,
+.check-dropdown-toggle[aria-expanded="true"] {
+  border-color: var(--primary);
+}
+
+.check-dropdown-full {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  margin-top: 2px;
+}
+
+.check-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 215px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 7px;
+  box-shadow: var(--shadow);
+  z-index: 2500;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.check-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 9px;
+  border-radius: 7px;
+  color: var(--text);
+  font-size: 12.5px;
   font-weight: 600;
   margin: 0;
   cursor: pointer;
   user-select: none;
-  transition: all 0.14s ease;
+  transition: background 0.12s ease;
 }
 
-.check-pill:hover {
-  border-color: var(--primary);
+.check-menu-item:hover {
+  background: var(--panel-alt);
 }
 
-.check-pill input[type="checkbox"] {
-  width: 13px;
-  height: 13px;
+.check-menu-item input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
   margin: 0;
   padding: 0;
   accent-color: var(--primary);
   cursor: pointer;
 }
 
-.check-pill:has(input:checked) {
-  background: rgba(37, 99, 235, 0.16);
-  border-color: var(--primary);
+.check-menu-item:has(input:checked) {
+  background: rgba(37, 99, 235, 0.15);
   color: var(--text);
 }
 
@@ -180,17 +219,43 @@ body {
   position: relative;
 }
 
+.kanban-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.kanban-date-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.14s ease, background 0.14s ease;
+}
+
+.kanban-date-btn:hover {
+  border-color: var(--primary);
+}
+
 .date-filter-popover {
   position: absolute;
   top: calc(100% + 6px);
-  left: 0;
-  min-width: 210px;
+  right: 0;
+  left: auto;
+  min-width: 200px;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 6px;
   box-shadow: var(--shadow);
-  z-index: 2200;
+  z-index: 2500;
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -460,7 +525,8 @@ html[data-theme="light"] .kanban-board {
   border-radius: 14px;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
+  min-height: 0;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
@@ -481,10 +547,13 @@ html[data-theme="light"] .kanban-col {
   font-weight: 700;
   font-size: 13px;
   border-bottom: 1px solid var(--border);
+  border-radius: 13px 13px 0 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
   background: var(--panel-alt);
+  position: relative;
+  z-index: 20;
 }
 
 .count-badge {

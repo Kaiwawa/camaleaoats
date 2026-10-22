@@ -85,15 +85,13 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
         const workModes = Array.isArray(body.workModes)
           ? (body.workModes.map(String) as ModalityOption[])
           : undefined;
-        const datePosted = body.datePosted ? (String(body.datePosted) as DatePostedFilter) : undefined;
         db.deleteDemoJobs();
         const result = await collectRemoteDevOpsJobs(db, fetch, {
           seniorityFilter,
           seniorities,
           workMode,
           locationFilter,
-          workModes,
-          datePosted
+          workModes
         });
         return sendJson(res, 200, result);
       }
