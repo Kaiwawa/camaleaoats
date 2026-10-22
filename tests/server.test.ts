@@ -198,5 +198,15 @@ test('API serves Kanban bootstrap, bilingual job popup detail with Gupy kit & hi
   const clearData = await clearRes.json();
   assert.ok(clearData.deletedCount >= 1);
   assert.equal(clearData.jobs.filter((j: { status: string }) => j.status === 'abertas').length, 0);
+
+  // 12. Block Cross-Origin Drive-By CSRF POST requests from external origins
+  const csrfRes = await fetch(`${baseUrl}/api/jobs/clear-open`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      origin: 'https://evil-attacker.example.com'
+    }
+  });
+  assert.equal(csrfRes.status, 403);
 });
 

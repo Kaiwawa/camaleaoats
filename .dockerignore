@@ -7,5 +7,6 @@ data/
 .env.*
 .git/
 .superpowers/
+docs/
 .gemini/
 *.pdf

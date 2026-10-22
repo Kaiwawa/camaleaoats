@@ -87,6 +87,25 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
       const pathname = reqUrl.pathname;
       const method = req.method || 'GET';
 
+      // Block Cross-Origin Drive-By CSRF attacks against local/self-hosted instance
+      if (method === 'POST' && pathname.startsWith('/api/')) {
+        const origin = req.headers.origin;
+        if (origin) {
+          try {
+            const originHost = new URL(origin).hostname.toLowerCase();
+            const reqHost = String(req.headers.host || 'localhost').split(':')[0].toLowerCase();
+            const isLocal =
+              (originHost === 'localhost' || originHost === '127.0.0.1') &&
+              (reqHost === 'localhost' || reqHost === '127.0.0.1');
+            if (originHost !== reqHost && !isLocal) {
+              return sendJson(res, 403, { error: 'Forbidden: Cross-origin request blocked' });
+            }
+          } catch {
+            return sendJson(res, 403, { error: 'Forbidden: Invalid Origin header' });
+          }
+        }
+      }
+
       if (method === 'GET' && pathname === '/api/bootstrap') {
         db.deleteDemoJobs();
         const jobs = db.listJobs();

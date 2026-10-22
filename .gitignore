@@ -28,6 +28,7 @@ test-results/
 
 # AI / Agent Scratch & Brainstorming Directories
 .superpowers/
+docs/superpowers/
 .gemini/
 .claude/
 
