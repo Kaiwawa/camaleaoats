@@ -16,19 +16,42 @@ import { generateAtsPdfBuffer } from './pdf-generator.ts';
 import {
   collectRemoteDevOpsJobs,
   ingestJobFromUrlOrText,
+  isSafeExternalHttpUrl,
   runAutoApplication,
-  type DatePostedFilter,
   type LocationScope,
   type ModalityOption
 } from './scraper-and-applier.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, 'public');
+const MAX_BODY_BYTES = 5 * 1024 * 1024; // 5 MB max request body size
+
+const BASE_SECURITY_HEADERS: Record<string, string> = {
+  'x-content-type-options': 'nosniff',
+  'x-frame-options': 'DENY',
+  'referrer-policy': 'no-referrer',
+  'permissions-policy': 'camera=(), microphone=(), geolocation=()',
+  'content-security-policy':
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+};
+
+class PayloadTooLargeError extends Error {
+  constructor() {
+    super('Payload Too Large');
+  }
+}
 
 async function readJsonBody(req: http.IncomingMessage): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = [];
+  let totalBytes = 0;
   for await (const chunk of req) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    totalBytes += buf.length;
+    if (totalBytes > MAX_BODY_BYTES) {
+      req.destroy();
+      throw new PayloadTooLargeError();
+    }
+    chunks.push(buf);
   }
   const raw = Buffer.concat(chunks).toString('utf8').trim();
   if (!raw) return {};
@@ -38,6 +61,8 @@ async function readJsonBody(req: http.IncomingMessage): Promise<Record<string, u
 function sendJson(res: http.ServerResponse, status: number, payload: unknown): void {
   const data = JSON.stringify(payload);
   res.writeHead(status, {
+    ...BASE_SECURITY_HEADERS,
+    'cache-control': 'no-store',
     'content-type': 'application/json; charset=utf-8',
     'content-length': Buffer.byteLength(data)
   });
@@ -98,8 +123,12 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
 
       if (method === 'POST' && pathname === '/api/jobs/ingest') {
         const body = await readJsonBody(req);
+        const rawUrl = String(body.url ?? '').trim();
+        if (rawUrl && !isSafeExternalHttpUrl(rawUrl)) {
+          return sendJson(res, 400, { error: 'Invalid or restricted URL' });
+        }
         const created = await ingestJobFromUrlOrText(db, {
-          url: String(body.url ?? ''),
+          url: rawUrl,
           rawText: String(body.rawText ?? ''),
           title: String(body.title ?? ''),
           company: String(body.company ?? ''),
@@ -149,6 +178,8 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
 
         const safeName = `CV-DevOps-${job.company.replace(/[^a-zA-Z0-9_-]/g, '_')}-${lang}.pdf`;
         res.writeHead(200, {
+          ...BASE_SECURITY_HEADERS,
+          'cache-control': 'no-store',
           'content-type': 'application/pdf',
           'content-disposition': `attachment; filename="${safeName}"`,
           'content-length': pdfBuffer.length
@@ -450,6 +481,9 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
       const agentMatch = pathname.match(/^\/api\/agents\/([a-zA-Z0-9._-]+)$/);
       if (method === 'POST' && agentMatch) {
         const slug = agentMatch[1];
+        if (!/^[a-zA-Z0-9_-]+\.md$/.test(slug) || slug.includes('..')) {
+          return sendJson(res, 400, { error: 'Invalid agent filename' });
+        }
         const body = await readJsonBody(req);
         const agent = db.updateAgentPrompt(slug, String(body.content ?? ''));
         return sendJson(res, 200, { agent, agentPrompts: db.listAgentPrompts() });
@@ -468,13 +502,22 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
         const fullPath = path.join(PUBLIC_DIR, target.file);
         if (fs.existsSync(fullPath)) {
           const content = fs.readFileSync(fullPath);
-          res.writeHead(200, { 'content-type': target.type });
+          res.writeHead(200, {
+            ...BASE_SECURITY_HEADERS,
+            'content-type': target.type
+          });
           return res.end(content);
         }
       }
 
       return sendJson(res, 404, { error: 'Not found' });
     } catch (err) {
+      if (err instanceof PayloadTooLargeError) {
+        return sendJson(res, 413, { error: 'Payload Too Large (max 5MB)' });
+      }
+      if (err instanceof SyntaxError) {
+        return sendJson(res, 400, { error: 'Malformed JSON body' });
+      }
       return sendJson(res, 500, {
         error: err instanceof Error ? err.message : 'Internal server error'
       });

@@ -131,5 +131,57 @@ test('API serves Kanban bootstrap, bilingual job popup detail with Gupy kit & hi
         l.id === langToEdit.id && l.language === 'Inglês Técnico' && l.proficiency === 'Avançado'
     )
   );
+
+  // 10. Security hardening checks: CSP/Security headers, SSRF protection, Agent slug validation, and XSS URL sanitization
+  assert.equal(bootRes.headers.get('x-frame-options'), 'DENY');
+  assert.equal(bootRes.headers.get('x-content-type-options'), 'nosniff');
+  assert.equal(bootRes.headers.get('cache-control'), 'no-store');
+  assert.match(bootRes.headers.get('content-security-policy') ?? '', /default-src 'self'/);
+
+  // Block SSRF against loopback / metadata IPs and non-http schemes
+  for (const unsafeUrl of [
+    'http://127.0.0.1:8080/admin',
+    'http://localhost:3000/api/bootstrap',
+    'http://169.254.169.254/latest/meta-data/',
+    'file:///etc/passwd',
+    'javascript:alert(1)'
+  ]) {
+    const ssrfRes = await fetch(`${baseUrl}/api/jobs/ingest`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'Test', company: 'Corp', url: unsafeUrl })
+    });
+    assert.equal(ssrfRes.status, 400);
+  }
+
+  // Block invalid agent slug / traversal attempt
+  const badAgentRes = await fetch(`${baseUrl}/api/agents/..%2Fevil.sh`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ content: 'malicious' })
+  });
+  assert.ok(badAgentRes.status === 400 || badAgentRes.status === 404);
+
+  const nonMdAgentRes = await fetch(`${baseUrl}/api/agents/evil.js`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ content: 'malicious' })
+  });
+  assert.equal(nonMdAgentRes.status, 400);
+
+  // Strip javascript: URLs from personal projects
+  const xssProjRes = await fetch(`${baseUrl}/api/profile/projects`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      name: 'Safe Project',
+      techStack: 'Docker',
+      descriptionPt: 'Container security',
+      url: 'javascript:alert(document.cookie)'
+    })
+  });
+  const xssProjData = await xssProjRes.json();
+  const safeProj = xssProjData.profile.personalProjects.find((p: { name: string }) => p.name === 'Safe Project');
+  assert.equal(safeProj.url, '');
 });
 

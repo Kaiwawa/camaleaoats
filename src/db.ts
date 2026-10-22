@@ -29,6 +29,18 @@ function normalizeToken(value: string): string {
     .trim();
 }
 
+function sanitizeUrlField(raw?: string): string {
+  const trimmed = String(raw || '').trim();
+  if (!trimmed) return '';
+  if (/^https?:\/\/[^\s<>"]+$/i.test(trimmed)) return trimmed;
+  if (/^mailto:[^\s<>"]+$/i.test(trimmed)) return trimmed;
+  return '';
+}
+
+function isValidAgentSlug(slug: string): boolean {
+  return /^[a-zA-Z0-9_-]+\.md$/.test(slug) && !slug.includes('..');
+}
+
 export function inferJobSeniority(title: string, description = ''): JobSeniority {
   const sample = `${title} ${description.slice(0, 300)}`.toLowerCase();
   if (/\b(est[áa]gio|intern|trainee)\b/i.test(sample)) return 'estagio';
@@ -46,11 +58,18 @@ export class AppDatabase {
   constructor(dbPath = path.join(process.cwd(), 'data', 'camaleao.db')) {
     if (dbPath !== ':memory:') {
       this.dataDir = path.dirname(dbPath);
-      fs.mkdirSync(this.dataDir, { recursive: true });
+      fs.mkdirSync(this.dataDir, { recursive: true, mode: 0o700 });
     } else {
       this.dataDir = '';
     }
     this.db = new DatabaseSync(dbPath);
+    if (dbPath !== ':memory:' && fs.existsSync(dbPath)) {
+      try {
+        fs.chmodSync(dbPath, 0o600);
+      } catch {
+        // Ignore chmod on unsupported filesystems
+      }
+    }
     this.initSchema();
     this.seedIfEmpty();
   }
@@ -411,11 +430,13 @@ export class AppDatabase {
   }
 
   private writeAgentFileToDisk(slug: string, content: string): void {
-    if (!this.dataDir) return;
+    if (!this.dataDir || !isValidAgentSlug(slug)) return;
     try {
-      const agentsDir = path.join(this.dataDir, 'agents');
-      fs.mkdirSync(agentsDir, { recursive: true });
-      fs.writeFileSync(path.join(agentsDir, slug), content, 'utf8');
+      const agentsDir = path.resolve(this.dataDir, 'agents');
+      fs.mkdirSync(agentsDir, { recursive: true, mode: 0o700 });
+      const safeFile = path.resolve(agentsDir, path.basename(slug));
+      if (!safeFile.startsWith(agentsDir + path.sep)) return;
+      fs.writeFileSync(safeFile, content, { encoding: 'utf8', mode: 0o600 });
     } catch {
       // Ignore disk sync errors in read-only environments
     }
@@ -729,7 +750,7 @@ export class AppDatabase {
         JSON.stringify(proj.techStack),
         proj.descriptionPt.trim(),
         (proj.descriptionEn || proj.descriptionPt).trim(),
-        proj.url?.trim() || ''
+        sanitizeUrlField(proj.url)
       );
     return this.getProfile();
   }
@@ -750,7 +771,7 @@ export class AppDatabase {
         nextStack,
         nextPt,
         nextEn,
-        patch.url !== undefined ? patch.url.trim() : String(existing.url ?? ''),
+        patch.url !== undefined ? sanitizeUrlField(patch.url) : String(existing.url ?? ''),
         id
       );
     return this.getProfile();
@@ -803,6 +824,9 @@ export class AppDatabase {
   }
 
   public updateAgentPrompt(slug: string, content: string): AgentPromptMd {
+    if (!isValidAgentSlug(slug)) {
+      throw new Error('Invalid agent prompt slug');
+    }
     const now = new Date().toISOString();
     this.db.prepare('UPDATE agent_prompts SET content = ?, updated_at = ? WHERE slug = ?').run(content, now, slug);
     this.writeAgentFileToDisk(slug, content);

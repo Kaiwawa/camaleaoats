@@ -93,6 +93,13 @@ function escapeHtmlClient(str) {
     .replace(/'/g, '&#39;');
 }
 
+function sanitizeHttpUrlClient(rawUrl) {
+  const s = String(rawUrl || '').trim();
+  if (/^https?:\/\/[^\s<>"]+$/i.test(s)) return s;
+  if (/^mailto:[^\s<>"]+$/i.test(s)) return s;
+  return '#';
+}
+
 let toastTimer = null;
 let initialBrowserThemeApplied = false;
 
@@ -523,7 +530,7 @@ async function openJobModal(jobId, forcedLang) {
   document.getElementById('modal-job-location').textContent = job.location;
   document.getElementById('modal-job-seniority').value =
     job.seniority && job.seniority !== 'junior_pleno' ? job.seniority : 'pleno';
-  document.getElementById('modal-job-url').href = job.url;
+  document.getElementById('modal-job-url').href = sanitizeHttpUrlClient(job.url);
 
   document.getElementById('btn-lang-pt').classList.toggle('active', state.activeLang === 'pt-BR');
   document.getElementById('btn-lang-en').classList.toggle('active', state.activeLang === 'en');
@@ -570,7 +577,7 @@ async function openJobModal(jobId, forcedLang) {
   // Tab 3: Tech Recruiter
   document.getElementById('input-recruiter-name').value = job.recruiterName || '';
   document.getElementById('select-recruiter-status').value = job.recruiterStatus || 'nao_enviado';
-  document.getElementById('btn-find-recruiter-linkedin').href = recruiterMessages.linkedinSearchUrl;
+  document.getElementById('btn-find-recruiter-linkedin').href = sanitizeHttpUrlClient(recruiterMessages.linkedinSearchUrl);
   document.getElementById('modal-recruiter-invite').value = recruiterMessages.inviteNote;
   document.getElementById('modal-invite-counter').textContent = `${recruiterMessages.inviteCharCount}/200c`;
   document.getElementById('modal-recruiter-dm').value = recruiterMessages.postAcceptDm;
@@ -657,9 +664,10 @@ document.getElementById('btn-auto-apply').addEventListener('click', async () => 
   if (!state.activeJobId) return;
   const job = state.jobs.find((j) => j.id === state.activeJobId);
 
-  // 1. Open the original job site in a new tab
-  if (job && job.url) {
-    window.open(job.url, '_blank', 'noopener');
+  // 1. Open the original job site in a new tab (only if valid http/https/mailto URL)
+  const safeJobUrl = sanitizeHttpUrlClient(job?.url);
+  if (safeJobUrl && safeJobUrl !== '#') {
+    window.open(safeJobUrl, '_blank', 'noopener,noreferrer');
   }
 
   // 2. Trigger automatic download of the tailored ATS PDF CV
@@ -1101,7 +1109,7 @@ function renderProfileModalContent() {
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
           <strong>🚀 ${escapeHtmlClient(pr.name)}</strong>
           <span class="seniority-tag">${escapeHtmlClient((pr.techStack || []).join(', '))}</span>
-          ${pr.url ? `<a href="${escapeHtmlClient(pr.url)}" target="_blank" rel="noopener" style="font-size:12px; color:var(--primary); font-weight:600;">🔗 Link ↗</a>` : ''}
+          ${pr.url && sanitizeHttpUrlClient(pr.url) !== '#' ? `<a href="${escapeHtmlClient(sanitizeHttpUrlClient(pr.url))}" target="_blank" rel="noopener noreferrer" style="font-size:12px; color:var(--primary); font-weight:600;">🔗 Link ↗</a>` : ''}
         </div>
         <div style="font-size:12px; color:var(--muted); margin-top:4px;">${escapeHtmlClient(pr.descriptionPt)}</div>
       </div>

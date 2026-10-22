@@ -18,6 +18,57 @@ export type DatePostedFilter = 'all' | '24h' | '3d' | '7d' | '30d';
 
 let scrapePageOffset = 0;
 
+export function isSafeExternalHttpUrl(rawUrl: string): boolean {
+  try {
+    const parsed = new URL(rawUrl.trim());
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return false;
+    }
+    const host = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    if (
+      host === 'localhost' ||
+      host.endsWith('.localhost') ||
+      host.endsWith('.local') ||
+      host.endsWith('.internal') ||
+      host === '0.0.0.0' ||
+      host === '::1' ||
+      host === '::' ||
+      host.startsWith('fe80:') ||
+      host.startsWith('fc00:') ||
+      host.startsWith('fd00:') ||
+      host === 'metadata.google.internal'
+    ) {
+      return false;
+    }
+    // Check IPv4 private / loopback / link-local / cloud metadata ranges
+    const ipv4Match = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (ipv4Match) {
+      const [a, b] = [Number(ipv4Match[1]), Number(ipv4Match[2])];
+      if (
+        a === 0 ||
+        a === 10 ||
+        a === 127 ||
+        (a === 169 && b === 254) ||
+        (a === 172 && b >= 16 && b <= 31) ||
+        (a === 192 && b === 168) ||
+        (a === 100 && b >= 64 && b <= 127)
+      ) {
+        return false;
+      }
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function sanitizeExternalUrl(rawUrl: string): string {
+  const trimmed = (rawUrl || '').trim();
+  if (!trimmed) return '';
+  if (/^mailto:[^\s<>"]+$/i.test(trimmed)) return trimmed;
+  return isSafeExternalHttpUrl(trimmed) ? trimmed : '';
+}
+
 function detectPlatformFromUrl(url: string, description = ''): string {
   const lower = `${url} ${description}`.toLowerCase();
   if (lower.includes('gupy.io') || /\bgupy\b/i.test(lower)) return 'Gupy';
@@ -447,14 +498,18 @@ export async function ingestJobFromUrlOrText(
   },
   fetchImpl: typeof fetch = fetch
 ): Promise<Job> {
-  const url = (input.url || '').trim();
+  const url = sanitizeExternalUrl(input.url || '');
   let description = (input.rawText || '').trim();
   let title = (input.title || '').trim();
   const company = (input.company || '').trim() || 'Empresa Remota';
 
-  if (url && !description) {
+  if (url && !description && isSafeExternalHttpUrl(url)) {
     try {
-      const resp = await fetchImpl(url, { headers: { 'user-agent': 'Mozilla/5.0 CamaleaoATS' } });
+      const resp = await fetchImpl(url, {
+        headers: { 'user-agent': 'Mozilla/5.0 CamaleaoATS' },
+        redirect: 'error',
+        signal: AbortSignal.timeout(8000)
+      });
       if (resp.ok) {
         const html = await resp.text();
         const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
@@ -464,7 +519,7 @@ export async function ingestJobFromUrlOrText(
         description = stripHtmlTags(html).slice(0, 4000);
       }
     } catch {
-      // Fallback if URL requires login
+      // Fallback if URL requires login or redirects
     }
   }
 
