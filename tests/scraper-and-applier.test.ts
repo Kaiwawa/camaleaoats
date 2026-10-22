@@ -124,18 +124,78 @@ test('parseLinkedInGuestSearchHtml extracts live job cards and buildSearchQueryF
   assert.equal(parsed[0].title, 'DevOps Pleno (AWS / Docker)');
   assert.equal(parsed[0].company, 'Serasa Experian');
 
-  // Verify Título Profissional directs the search and checkboxes for Seniority, Location, Modality & Date Posted work
+  // Verify customQueryTitle directs the search independently of profile.titlePt, and locationFilter 'br' never fetches Worldwide boards
   const updatedProfile = db.updateProfileInfo({ titlePt: 'Site Reliability Engineer | Cloud' });
   const customQuery = buildSearchQueryFromProfile(updatedProfile, 'all', 'remoto_br', {
+    customQueryTitle: 'Cloud Architect AWS',
     seniorities: ['junior', 'pleno'],
     locationFilter: 'global',
     workModes: ['remoto', 'hibrido'],
     datePosted: '7d'
   });
-  assert.equal(customQuery.roleTitle, 'Site Reliability Engineer');
-  assert.match(customQuery.keywords, /^Site Reliability Engineer Junior Pleno$/);
+  assert.equal(customQuery.roleTitle, 'Cloud Architect AWS');
+  assert.match(customQuery.keywords, /^Cloud Architect AWS Junior Pleno$/);
   assert.equal(customQuery.location, 'Worldwide');
   assert.equal(customQuery.remoteFilter, '2,3');
   assert.equal(customQuery.timePostedParam, 'r604800');
 });
+
+test('collectRemoteDevOpsJobs with locationFilter=br excludes Worldwide boards (Jobicy/Remotive) and uses customQueryTitle', async () => {
+  const db = new AppDatabase(':memory:');
+  const requestedUrls: string[] = [];
+  const fakeBrFetch = async (url: string | URL) => {
+    const u = String(url);
+    requestedUrls.push(u);
+    if (u.includes('seeMoreJobPostings/search')) {
+      return new Response(
+        `<li>
+          <div class="base-card" data-entity-urn="urn:li:jobPosting:778899">
+            <a class="base-card__full-link" href="https://br.linkedin.com/jobs/view/778899"></a>
+            <h3 class="base-search-card__title">Analista Cloud AWS Pleno</h3>
+            <h4 class="base-search-card__subtitle"><a>Empresa Paulista</a></h4>
+            <span class="job-search-card__location">São Paulo, Brasil</span>
+          </div>
+        </li>`,
+        { status: 200, headers: { 'content-type': 'text/html' } }
+      );
+    }
+    if (u.includes('jobPosting/778899')) {
+      return new Response(
+        `<div class="show-more-less-html__markup">Vaga no Brasil com AWS, Docker, Terraform e Kubernetes.</div>`,
+        { status: 200, headers: { 'content-type': 'text/html' } }
+      );
+    }
+    if (u.includes('portal.api.gupy.io')) {
+      return new Response(
+        JSON.stringify({
+          data: [
+            {
+              name: 'Engenheiro Cloud AWS',
+              companyName: 'BrasilCloud S.A.',
+              jobUrl: 'https://brasilcloud.gupy.io/jobs/1234',
+              city: 'São Paulo',
+              state: 'SP',
+              country: 'Brasil',
+              workplaceType: 'remote',
+              description: 'Atuação no Brasil com AWS, Docker, GitHub Actions e Kubernetes.'
+            }
+          ]
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      );
+    }
+    throw new Error(`Unexpected Worldwide URL called during Brazil search: ${u}`);
+  };
+
+  const res = await collectRemoteDevOpsJobs(db, fakeBrFetch as unknown as typeof fetch, {
+    customQueryTitle: 'Cloud AWS',
+    locationFilter: 'br',
+    workModes: ['remoto']
+  });
+  assert.equal(res.roleTitleUsed, 'Cloud AWS');
+  assert.ok(res.added >= 1);
+  assert.equal(requestedUrls.some((u) => u.includes('jobicy.com') || u.includes('remotive.com')), false);
+  assert.equal(db.listJobs().some((j) => /worldwide/i.test(j.location)), false);
+});
+
 

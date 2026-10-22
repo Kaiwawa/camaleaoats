@@ -208,5 +208,52 @@ test('API serves Kanban bootstrap, bilingual job popup detail with Gupy kit & hi
     }
   });
   assert.equal(csrfRes.status, 403);
+
+  // 13. Manually delete a specific job and clear "Sem Sucesso" column
+  const jobToDeleteRes = await fetch(`${baseUrl}/api/jobs/ingest`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      title: 'Vaga Para Deletar Manualmente',
+      company: 'TempCorp',
+      url: 'https://tempcorp.gupy.io/jobs/999',
+      rawText: 'AWS, Docker, Terraform.'
+    })
+  });
+  const jobToDelete = await jobToDeleteRes.json();
+  const delRes = await fetch(`${baseUrl}/api/jobs/${jobToDelete.id}/delete`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' }
+  });
+  assert.equal(delRes.status, 200);
+  const delData = await delRes.json();
+  assert.equal(delData.deleted, true);
+  assert.equal(delData.jobs.some((j: { id: number }) => j.id === jobToDelete.id), false);
+
+  // Add a job, move to sem_sucesso, and clear sem_sucesso
+  const unsuccJobRes = await fetch(`${baseUrl}/api/jobs/ingest`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      title: 'Vaga Sem Sucesso Teste',
+      company: 'UnsuccCorp',
+      url: 'https://unsucc.gupy.io/jobs/888',
+      rawText: 'AWS, Docker.'
+    })
+  });
+  const unsuccJob = await unsuccJobRes.json();
+  await fetch(`${baseUrl}/api/jobs/${unsuccJob.id}/move`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ status: 'sem_sucesso', reason: '' })
+  });
+  const clearUnsuccRes = await fetch(`${baseUrl}/api/jobs/clear-unsuccessful`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' }
+  });
+  assert.equal(clearUnsuccRes.status, 200);
+  const clearUnsuccData = await clearUnsuccRes.json();
+  assert.equal(clearUnsuccData.deletedCount, 1);
+  assert.equal(clearUnsuccData.jobs.filter((j: { status: string }) => j.status === 'sem_sucesso').length, 0);
 });
 

@@ -5,11 +5,25 @@ let state = {
   agentPrompts: [],
   activeJobId: null,
   activeLang: 'pt-BR',
+  scrapeQueryTitle: '',
   selectedSeniorities: [],
   locationFilter: 'br',
   workModes: [],
   datePosted: 'all',
+  columnFilters: {
+    abertas: { seniorities: [], workModes: [], location: 'all' },
+    em_processo: { seniorities: [], workModes: [], location: 'all' },
+    sem_sucesso: { seniorities: [], workModes: [], location: 'all' },
+    ruins: { seniorities: [], workModes: [], location: 'all' }
+  },
   activeAgentSlug: 'cv-adapter.md'
+};
+
+const KANBAN_STATUS_LABELS = {
+  abertas: 'Vagas Abertas',
+  em_processo: 'Em Processo',
+  sem_sucesso: 'Sem Sucesso',
+  ruins: 'Vagas Ruins'
 };
 
 const SENIORITY_LABELS = {
@@ -156,7 +170,6 @@ async function loadBootstrap() {
   state.settings = data.settings;
   state.agentPrompts = data.agentPrompts || [];
 
-  // Auto mode runs ONLY when the user first opens the site, setting the mode according to the browser's current scheme
   if (!initialBrowserThemeApplied) {
     initialBrowserThemeApplied = true;
     const browserPrefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
@@ -177,23 +190,6 @@ function renderHeader() {
     state.locationFilter = loc.includes('global') || loc.includes('latam') || loc.includes('worldwide') ? 'global' : 'br';
   }
 
-  const locEl = document.getElementById('select-location');
-  if (locEl) locEl.value = state.locationFilter;
-
-  document.querySelectorAll('#filter-modality-checks input[name="mod-check"]').forEach((chk) => {
-    chk.checked = state.workModes.includes(chk.value);
-  });
-
-  document.querySelectorAll('#filter-seniority-checks input[name="sen-check"]').forEach((chk) => {
-    chk.checked = state.selectedSeniorities.includes(chk.value);
-  });
-
-  const senLabelEl = document.getElementById('label-seniority-dropdown');
-  if (senLabelEl) senLabelEl.textContent = formatSeniorityTriggerLabel(state.selectedSeniorities);
-
-  const modLabelEl = document.getElementById('label-modality-dropdown');
-  if (modLabelEl) modLabelEl.textContent = formatModalityTriggerLabel(state.workModes);
-
   const dateLabelEl = document.getElementById('date-filter-label');
   if (dateLabelEl) {
     dateLabelEl.textContent = DATE_POSTED_LABELS[state.datePosted] || 'Qualquer horário';
@@ -205,6 +201,10 @@ function closeAllDropdownMenus() {
   document.querySelectorAll('.check-dropdown-toggle').forEach((btn) => btn.setAttribute('aria-expanded', 'false'));
 }
 
+function closeAllColumnFilterPopovers() {
+  document.querySelectorAll('.kanban-filter-popover').forEach((p) => p.classList.add('hidden'));
+}
+
 function bindCheckDropdown(toggleBtnId, menuId) {
   const btn = document.getElementById(toggleBtnId);
   const menu = document.getElementById(menuId);
@@ -214,6 +214,7 @@ function bindCheckDropdown(toggleBtnId, menuId) {
     e.stopPropagation();
     const isHidden = menu.classList.contains('hidden');
     closeAllDropdownMenus();
+    closeAllColumnFilterPopovers();
     document.getElementById('date-filter-popover')?.classList.add('hidden');
     if (isHidden) {
       menu.classList.remove('hidden');
@@ -226,8 +227,6 @@ function bindCheckDropdown(toggleBtnId, menuId) {
   });
 }
 
-bindCheckDropdown('btn-seniority-dropdown', 'filter-seniority-checks');
-bindCheckDropdown('btn-modality-dropdown', 'filter-modality-checks');
 bindCheckDropdown('btn-confirm-seniority-dropdown', 'confirm-seniority-checks');
 bindCheckDropdown('btn-confirm-modality-dropdown', 'confirm-modality-checks');
 
@@ -235,7 +234,115 @@ document.addEventListener('click', (e) => {
   if (!e.target.closest('.check-dropdown')) {
     closeAllDropdownMenus();
   }
+  if (!e.target.closest('.kanban-filter-wrapper')) {
+    closeAllColumnFilterPopovers();
+  }
 });
+
+// Initialize per-column "🌪️ Filtros" popovers
+function updateColumnFilterButtonBadge(col) {
+  const f = state.columnFilters[col];
+  if (!f) return;
+  let activeCount = 0;
+  if (f.seniorities.length > 0 && f.seniorities.length < 5) activeCount++;
+  if (f.workModes.length > 0 && f.workModes.length < 3) activeCount++;
+  if (f.location && f.location !== 'all') activeCount++;
+
+  const labelEl = document.getElementById(`col-filter-label-${col}`);
+  const btnEl = document.querySelector(`[data-toggle-col-filter="${col}"]`);
+  if (labelEl) {
+    labelEl.textContent = activeCount > 0 ? `Filtros (${activeCount})` : 'Filtros';
+  }
+  if (btnEl) {
+    btnEl.classList.toggle('has-active-filters', activeCount > 0);
+  }
+}
+
+function initColumnFilterPopovers() {
+  const cols = ['abertas', 'em_processo', 'sem_sucesso', 'ruins'];
+  for (const col of cols) {
+    const popover = document.getElementById(`col-filter-popover-${col}`);
+    const toggleBtn = document.querySelector(`[data-toggle-col-filter="${col}"]`);
+    if (!popover || !toggleBtn) continue;
+
+    popover.innerHTML = `
+      <div class="col-filter-section">
+        <div class="col-filter-title">Senioridade</div>
+        <label class="check-menu-item"><input type="checkbox" data-col="${col}" data-ftype="sen" value="estagio" /><span>Estágio / Trainee</span></label>
+        <label class="check-menu-item"><input type="checkbox" data-col="${col}" data-ftype="sen" value="junior" /><span>Júnior</span></label>
+        <label class="check-menu-item"><input type="checkbox" data-col="${col}" data-ftype="sen" value="pleno" /><span>Pleno</span></label>
+        <label class="check-menu-item"><input type="checkbox" data-col="${col}" data-ftype="sen" value="senior" /><span>Sênior</span></label>
+        <label class="check-menu-item"><input type="checkbox" data-col="${col}" data-ftype="sen" value="especialista" /><span>Especialista / Staff</span></label>
+      </div>
+      <div class="col-filter-section">
+        <div class="col-filter-title">Modalidade</div>
+        <label class="check-menu-item"><input type="checkbox" data-col="${col}" data-ftype="mod" value="remoto" /><span>Remoto</span></label>
+        <label class="check-menu-item"><input type="checkbox" data-col="${col}" data-ftype="mod" value="hibrido" /><span>Híbrido</span></label>
+        <label class="check-menu-item"><input type="checkbox" data-col="${col}" data-ftype="mod" value="presencial" /><span>Presencial</span></label>
+      </div>
+      <div class="col-filter-section">
+        <div class="col-filter-title">Local</div>
+        <select class="select-compact" data-col="${col}" data-ftype="loc" style="width:100%;">
+          <option value="all">🌐 Todos os Locais</option>
+          <option value="br">🌎 Somente Brasil</option>
+          <option value="global">🌐 Global / LatAm / Worldwide</option>
+        </select>
+      </div>
+      <div class="col-filter-footer">
+        <button type="button" class="btn btn-xs btn-secondary" data-clear-col-filter="${col}">Limpar filtros</button>
+      </div>
+    `;
+
+    toggleBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const wasHidden = popover.classList.contains('hidden');
+      closeAllColumnFilterPopovers();
+      closeAllDropdownMenus();
+      document.getElementById('date-filter-popover')?.classList.add('hidden');
+      if (wasHidden) {
+        popover.classList.remove('hidden');
+      }
+    });
+
+    popover.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
+
+    popover.querySelectorAll('input[type="checkbox"]').forEach((chk) => {
+      chk.addEventListener('change', () => {
+        const f = state.columnFilters[col];
+        f.seniorities = Array.from(popover.querySelectorAll('input[data-ftype="sen"]:checked')).map((el) => el.value);
+        f.workModes = Array.from(popover.querySelectorAll('input[data-ftype="mod"]:checked')).map((el) => el.value);
+        updateColumnFilterButtonBadge(col);
+        renderKanban();
+      });
+    });
+
+    const locSelect = popover.querySelector('select[data-ftype="loc"]');
+    if (locSelect) {
+      locSelect.addEventListener('change', () => {
+        state.columnFilters[col].location = locSelect.value;
+        updateColumnFilterButtonBadge(col);
+        renderKanban();
+      });
+    }
+
+    const clearBtn = popover.querySelector(`[data-clear-col-filter="${col}"]`);
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        state.columnFilters[col] = { seniorities: [], workModes: [], location: 'all' };
+        popover.querySelectorAll('input[type="checkbox"]').forEach((c) => {
+          c.checked = false;
+        });
+        if (locSelect) locSelect.value = 'all';
+        updateColumnFilterButtonBadge(col);
+        renderKanban();
+      });
+    }
+  }
+}
+
+initColumnFilterPopovers();
 
 // Day & Night On/Off Switch button (Landing Page only)
 const themeBtnEl = document.getElementById('btn-theme-toggle');
@@ -247,6 +354,7 @@ document.addEventListener('keydown', (e) => {
   document.getElementById('toast-banner')?.classList.add('hidden');
   document.getElementById('date-filter-popover')?.classList.add('hidden');
   closeAllDropdownMenus();
+  closeAllColumnFilterPopovers();
 
   const miniModals = [
     'scrape-confirm-modal-backdrop',
@@ -280,18 +388,6 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// Seniority Checkboxes (filters Kanban & sets scrape seniorities)
-document.querySelectorAll('#filter-seniority-checks input[name="sen-check"]').forEach((chk) => {
-  chk.addEventListener('change', () => {
-    state.selectedSeniorities = Array.from(
-      document.querySelectorAll('#filter-seniority-checks input[name="sen-check"]:checked')
-    ).map((el) => el.value);
-    const senLabelEl = document.getElementById('label-seniority-dropdown');
-    if (senLabelEl) senLabelEl.textContent = formatSeniorityTriggerLabel(state.selectedSeniorities);
-    renderKanban();
-  });
-});
-
 document.querySelectorAll('#confirm-seniority-checks input[name="confirm-sen-check"]').forEach((chk) => {
   chk.addEventListener('change', () => {
     const vals = Array.from(
@@ -312,49 +408,13 @@ document.querySelectorAll('#confirm-modality-checks input[name="confirm-mod-chec
   });
 });
 
-async function persistLocationAndModality() {
-  const mapped = buildLocationDisplay(state.locationFilter, state.workModes);
-  await fetch('/api/profile/evolve', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      profileInfo: {
-        locationPt: mapped.pt,
-        locationEn: mapped.en
-      }
-    })
-  });
-  await loadBootstrap();
-  showToast(`Local e Modalidade atualizados: ${mapped.pt}`);
-}
-
-// Separated Location dropdown (Brasil vs Global/LatAm)
-document.getElementById('select-location').addEventListener('change', async (e) => {
-  state.locationFilter = e.target.value;
-  await persistLocationAndModality();
-});
-
-// Separated Modality Checkboxes (Remoto, Híbrido, Presencial — empty means "Todas")
-document.querySelectorAll('#filter-modality-checks input[name="mod-check"]').forEach((chk) => {
-  chk.addEventListener('change', async () => {
-    const checked = Array.from(
-      document.querySelectorAll('#filter-modality-checks input[name="mod-check"]:checked')
-    ).map((el) => el.value);
-    state.workModes = checked;
-    const modLabelEl = document.getElementById('label-modality-dropdown');
-    if (modLabelEl) modLabelEl.textContent = formatModalityTriggerLabel(state.workModes);
-    renderKanban();
-    await persistLocationAndModality();
-  });
-});
-
 // Clear all jobs in "Vagas Abertas" column
 const clearOpenJobsBtn = document.getElementById('btn-clear-open-jobs');
 if (clearOpenJobsBtn) {
   clearOpenJobsBtn.addEventListener('click', async () => {
     const openCount = state.jobs.filter((j) => j.status === 'abertas').length;
     if (openCount === 0) {
-      showToast('A coluna "Vagas Abertas" já está vazia.');
+      showToast('A coluna Vagas Abertas já está vazia.');
       return;
     }
     const res = await fetch('/api/jobs/clear-open', {
@@ -363,7 +423,26 @@ if (clearOpenJobsBtn) {
     });
     const data = await res.json();
     await loadBootstrap();
-    showToast(`Coluna "Vagas Abertas" limpa (${data.deletedCount || openCount} vaga(s) removida(s))!`);
+    showToast(`Coluna Vagas Abertas limpa (${data.deletedCount || openCount} vaga(s) removida(s))!`);
+  });
+}
+
+// Clear all jobs in "Sem Sucesso" column
+const clearUnsuccessfulJobsBtn = document.getElementById('btn-clear-unsuccessful-jobs');
+if (clearUnsuccessfulJobsBtn) {
+  clearUnsuccessfulJobsBtn.addEventListener('click', async () => {
+    const count = state.jobs.filter((j) => j.status === 'sem_sucesso').length;
+    if (count === 0) {
+      showToast('A coluna Sem Sucesso já está vazia.');
+      return;
+    }
+    const res = await fetch('/api/jobs/clear-unsuccessful', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' }
+    });
+    const data = await res.json();
+    await loadBootstrap();
+    showToast(`Coluna Sem Sucesso limpa (${data.deletedCount || count} vaga(s) removida(s))!`);
   });
 }
 
@@ -375,6 +454,7 @@ if (dateFilterBtn && dateFilterPopover) {
   dateFilterBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     closeAllDropdownMenus();
+    closeAllColumnFilterPopovers();
     dateFilterPopover.classList.toggle('hidden');
   });
 
@@ -387,7 +467,7 @@ if (dateFilterBtn && dateFilterPopover) {
       document.getElementById('date-filter-label').textContent = DATE_POSTED_LABELS[state.datePosted] || 'Qualquer horário';
       dateFilterPopover.classList.add('hidden');
       renderKanban();
-      showToast(`Visualização do Kanban filtrada por horário: ${DATE_POSTED_LABELS[state.datePosted]}`);
+      showToast(`Visualização filtrada por horário: ${DATE_POSTED_LABELS[state.datePosted]}`);
     });
   });
 
@@ -425,20 +505,54 @@ function matchesModalityFilter(job, workModes) {
   return false;
 }
 
-// Kanban Render + Native Drag and Drop
+function matchesLocationFilter(job, locationFilter) {
+  if (!locationFilter || locationFilter === 'all') return true;
+  const sample = `${job.location || ''} ${job.title || ''} ${job.platform || ''}`.toLowerCase();
+  const hasBrazil = /brasil|brazil|s[ãa]o paulo|rio de janeiro|curitiba|belo horizonte|porto alegre|campinas|florian[óo]polis|recife|bras[íi]lia|gupy/i.test(sample);
+  const isWorldwide = /worldwide|global|latam|anywhere|united states|usa|europe|uk|canada|germany|remote \(global\)|jobicy|remotive/i.test(sample) && !hasBrazil;
+
+  if (locationFilter === 'br') {
+    return !isWorldwide;
+  }
+  if (locationFilter === 'global') {
+    return isWorldwide || /global|latam|worldwide/i.test(sample);
+  }
+  return true;
+}
+
+async function deleteJobManually(jobId) {
+  const res = await fetch(`/api/jobs/${jobId}/delete`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' }
+  });
+  if (res.ok) {
+    if (state.activeJobId === jobId) {
+      document.getElementById('job-modal-backdrop')?.classList.add('hidden');
+      state.activeJobId = null;
+    }
+    await loadBootstrap();
+    showToast('Vaga excluída manualmente!');
+  }
+}
+
+// Kanban Render + Native Drag and Drop + Per-Column Filter
 function renderKanban() {
   const cols = ['abertas', 'em_processo', 'sem_sucesso', 'ruins'];
-  const filteredJobs = state.jobs.filter((j) => {
-    const senMatch =
-      state.selectedSeniorities.length === 0 || state.selectedSeniorities.includes(j.seniority);
-    const dateMatch = matchesDateFilter(j, state.datePosted);
-    const modMatch = matchesModalityFilter(j, state.workModes);
-    return senMatch && dateMatch && modMatch;
-  });
 
   for (const col of cols) {
     const container = document.getElementById(`col-${col}`);
-    const list = filteredJobs.filter((j) => j.status === col);
+    const colFilter = state.columnFilters[col] || { seniorities: [], workModes: [], location: 'all' };
+
+    const list = state.jobs.filter((j) => {
+      if (j.status !== col) return false;
+      const senMatch =
+        colFilter.seniorities.length === 0 || colFilter.seniorities.includes(j.seniority);
+      const modMatch = matchesModalityFilter(j, colFilter.workModes);
+      const locMatch = matchesLocationFilter(j, colFilter.location);
+      const dateMatch = col === 'abertas' ? matchesDateFilter(j, state.datePosted) : true;
+      return senMatch && modMatch && locMatch && dateMatch;
+    });
+
     document.getElementById(`count-${col}`).textContent = String(list.length);
     container.innerHTML = '';
 
@@ -474,7 +588,10 @@ function renderKanban() {
       card.innerHTML = `
         <div class="job-card-top">
           <div class="job-card-title">${escapeHtmlClient(job.title)}</div>
-          <span class="score-pill">${Number(job.matchScore)}% Match</span>
+          <div class="job-card-top-right">
+            <span class="score-pill">${Number(job.matchScore)}% Match</span>
+            <button type="button" class="card-delete-btn" data-delete-job="${job.id}" title="Excluir vaga manualmente">🗑️</button>
+          </div>
         </div>
         <div class="job-card-meta">
           <strong>${escapeHtmlClient(job.company)}</strong> •
@@ -488,6 +605,15 @@ function renderKanban() {
         </div>
         ${recruiterBadge}
       `;
+
+      const delBtn = card.querySelector('[data-delete-job]');
+      if (delBtn) {
+        delBtn.addEventListener('click', async (ev) => {
+          ev.stopPropagation();
+          await deleteJobManually(job.id);
+        });
+      }
+
       container.appendChild(card);
     }
   }
@@ -525,10 +651,11 @@ document.querySelectorAll('.kanban-col').forEach((colEl) => {
       })
     });
     await loadBootstrap();
+    const normalizedName = KANBAN_STATUS_LABELS[targetStatus] || targetStatus;
     showToast(
       targetStatus === 'ruins'
         ? 'Vaga movida para Vagas Ruins — o filtro aprendeu seu gosto!'
-        : `Vaga movida para "${targetStatus}"!`
+        : `Vaga movida para ${normalizedName}!`
     );
   });
 });
@@ -662,9 +789,18 @@ document.querySelectorAll('[data-move]').forEach((btn) => {
     });
     await loadBootstrap();
     document.getElementById('job-modal-backdrop').classList.add('hidden');
-    showToast(status === 'ruins' ? 'Vaga movida para Vagas Ruins — o filtro aprendeu seu gosto!' : `Vaga movida para ${status}!`);
+    const normalizedName = KANBAN_STATUS_LABELS[status] || status;
+    showToast(status === 'ruins' ? 'Vaga movida para Vagas Ruins — o filtro aprendeu seu gosto!' : `Vaga movida para ${normalizedName}!`);
   });
 });
+
+const deleteJobModalBtn = document.getElementById('btn-delete-job-modal');
+if (deleteJobModalBtn) {
+  deleteJobModalBtn.addEventListener('click', async () => {
+    if (!state.activeJobId) return;
+    await deleteJobManually(state.activeJobId);
+  });
+}
 
 document.getElementById('btn-save-recruiter').addEventListener('click', async () => {
   if (!state.activeJobId) return;
@@ -707,23 +843,22 @@ document.getElementById('btn-auto-apply').addEventListener('click', async () => 
 
   await loadBootstrap();
   document.getElementById('job-modal-backdrop').classList.add('hidden');
-  showToast('Site da vaga aberto, CV ajustado baixado e card movido para "Em Processo"!');
+  showToast('Site da vaga aberto, CV ajustado baixado e Vaga movida para Em Processo!');
 });
 
-let hasConfirmedFirstSearch = false;
-
-async function executeJobScrape() {
+async function executeJobScrape(customQueryTitle) {
   const btn = document.getElementById('btn-scrape');
   const originalText = btn.textContent;
   btn.disabled = true;
   btn.textContent = '⏳ Buscando Vagas...';
-  const rawTitle = (state.profile?.titlePt || 'DevOps Engineer').split(/[|•–—/]/)[0].trim();
-  showToast(`Buscando vagas direcionadas pelo Título Profissional "${rawTitle}"...`);
+  const queryLabel = customQueryTitle || state.scrapeQueryTitle || 'DevOps Engineer';
+  showToast(`Buscando vagas para "${queryLabel}" (${state.locationFilter === 'global' ? 'Global / LatAm' : 'Brasil'})...`);
   try {
     const res = await fetch('/api/jobs/scrape', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
+        customQueryTitle: queryLabel,
         seniorities: state.selectedSeniorities,
         locationFilter: state.locationFilter,
         workModes: state.workModes
@@ -731,7 +866,7 @@ async function executeJobScrape() {
     });
     const data = await res.json();
     await loadBootstrap();
-    const usedTitle = data.roleTitleUsed || rawTitle;
+    const usedTitle = data.roleTitleUsed || queryLabel;
     showToast(`Busca concluída para "${usedTitle}"! ${data.added || 0} novas vagas (${data.total} no Kanban).`);
   } finally {
     btn.disabled = false;
@@ -739,25 +874,27 @@ async function executeJobScrape() {
   }
 }
 
-document.getElementById('btn-scrape').addEventListener('click', async () => {
-  if (!hasConfirmedFirstSearch) {
-    const rawTitle = (state.profile?.titlePt || 'DevOps Engineer').split(/[|•–—/]/)[0].trim();
-    document.getElementById('confirm-scrape-title').textContent = rawTitle || 'DevOps Engineer';
-    document.getElementById('confirm-scrape-location').value = state.locationFilter || 'br';
-    document.querySelectorAll('#confirm-seniority-checks input[name="confirm-sen-check"]').forEach((chk) => {
-      chk.checked = state.selectedSeniorities.includes(chk.value);
-    });
-    document.querySelectorAll('#confirm-modality-checks input[name="confirm-mod-check"]').forEach((chk) => {
-      chk.checked = state.workModes.includes(chk.value);
-    });
-    const confSenLabel = document.getElementById('label-confirm-seniority-dropdown');
-    if (confSenLabel) confSenLabel.textContent = formatSeniorityTriggerLabel(state.selectedSeniorities);
-    const confModLabel = document.getElementById('label-confirm-modality-dropdown');
-    if (confModLabel) confModLabel.textContent = formatModalityTriggerLabel(state.workModes);
-    document.getElementById('scrape-confirm-modal-backdrop').classList.remove('hidden');
-    return;
+// Always open the Search Popup when clicking "🔄 Buscar Vagas"
+document.getElementById('btn-scrape').addEventListener('click', () => {
+  const titleInput = document.getElementById('scrape-job-title-input');
+  if (titleInput && !titleInput.value.trim()) {
+    const fallbackTitle = state.scrapeQueryTitle || (state.profile?.titlePt || 'DevOps Engineer').split(/[|•–—/]/)[0].trim();
+    titleInput.value = fallbackTitle;
   }
-  await executeJobScrape();
+  document.getElementById('confirm-scrape-location').value = state.locationFilter || 'br';
+  document.querySelectorAll('#confirm-seniority-checks input[name="confirm-sen-check"]').forEach((chk) => {
+    chk.checked = state.selectedSeniorities.includes(chk.value);
+  });
+  document.querySelectorAll('#confirm-modality-checks input[name="confirm-mod-check"]').forEach((chk) => {
+    chk.checked = state.workModes.includes(chk.value);
+  });
+  const confSenLabel = document.getElementById('label-confirm-seniority-dropdown');
+  if (confSenLabel) confSenLabel.textContent = formatSeniorityTriggerLabel(state.selectedSeniorities);
+  const confModLabel = document.getElementById('label-confirm-modality-dropdown');
+  if (confModLabel) confModLabel.textContent = formatModalityTriggerLabel(state.workModes);
+
+  document.getElementById('scrape-confirm-modal-backdrop').classList.remove('hidden');
+  setTimeout(() => titleInput?.focus(), 60);
 });
 
 document.getElementById('btn-close-scrape-confirm').addEventListener('click', () => {
@@ -766,19 +903,27 @@ document.getElementById('btn-close-scrape-confirm').addEventListener('click', ()
 document.getElementById('btn-cancel-scrape-confirm').addEventListener('click', () => {
   document.getElementById('scrape-confirm-modal-backdrop').classList.add('hidden');
 });
-document.getElementById('btn-confirm-scrape-run').addEventListener('click', async () => {
+
+async function submitScrapePopup() {
+  const titleInput = document.getElementById('scrape-job-title-input');
+  const queryTitle = (titleInput?.value || '').trim();
+  if (!queryTitle) {
+    showToast('Informe o título da vaga que deseja buscar!');
+    titleInput?.focus();
+    return;
+  }
+
   const checkedMods = Array.from(
     document.querySelectorAll('#confirm-modality-checks input[name="confirm-mod-check"]:checked')
   ).map((el) => el.value);
 
-  hasConfirmedFirstSearch = true;
+  state.scrapeQueryTitle = queryTitle;
   state.selectedSeniorities = Array.from(
     document.querySelectorAll('#confirm-seniority-checks input[name="confirm-sen-check"]:checked')
   ).map((el) => el.value);
   state.locationFilter = document.getElementById('confirm-scrape-location').value;
   state.workModes = checkedMods;
 
-  renderHeader();
   document.getElementById('scrape-confirm-modal-backdrop').classList.add('hidden');
 
   const mapped = buildLocationDisplay(state.locationFilter, state.workModes);
@@ -792,7 +937,15 @@ document.getElementById('btn-confirm-scrape-run').addEventListener('click', asyn
       }
     })
   });
-  await executeJobScrape();
+  await executeJobScrape(queryTitle);
+}
+
+document.getElementById('btn-confirm-scrape-run').addEventListener('click', submitScrapePopup);
+document.getElementById('scrape-job-title-input')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    submitScrapePopup();
+  }
 });
 
 // ============================================================================

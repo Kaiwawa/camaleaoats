@@ -105,14 +105,16 @@ export function buildSearchQueryFromProfile(
   seniorityFilter: string | string[] = 'all',
   workMode: WorkModeFilter = 'remoto_br',
   extra?: {
+    customQueryTitle?: string;
     seniorities?: string[];
     locationFilter?: LocationScope;
     workModes?: ModalityOption[];
     datePosted?: DatePostedFilter;
   }
 ): { keywords: string; location: string; remoteFilter: string; roleTitle: string; timePostedParam: string } {
-  // Primary search driver is strictly the user's Título Profissional (profile.titlePt)
-  const rawTitle = (profile.titlePt || 'DevOps Engineer')
+  // Primary search driver is customQueryTitle entered in the Search Popup (falls back to profile.titlePt if omitted)
+  const baseTitleSource = extra?.customQueryTitle?.trim() || profile.titlePt || 'DevOps Engineer';
+  const rawTitle = baseTitleSource
     .split(/[|•–—/]/)[0]
     .replace(/\s*\(.*?\)/g, '')
     .trim();
@@ -222,6 +224,7 @@ export async function collectRemoteDevOpsJobs(
   db: AppDatabase,
   fetchImpl: typeof fetch = fetch,
   options: {
+    customQueryTitle?: string;
     seniorityFilter?: string;
     seniorities?: string[];
     workMode?: WorkModeFilter;
@@ -245,6 +248,7 @@ export async function collectRemoteDevOpsJobs(
     options.seniorityFilter || 'all',
     options.workMode || 'remoto_br',
     {
+      customQueryTitle: options.customQueryTitle,
       seniorities: options.seniorities,
       locationFilter: options.locationFilter,
       workModes: options.workModes,
@@ -254,15 +258,18 @@ export async function collectRemoteDevOpsJobs(
 
   const candidates: NewJobInput[] = [];
   const sourceSummary: string[] = [];
+  const isBrazilOnly = options.locationFilter === 'br';
+  const isWorldwideRequested = options.locationFilter === 'global' || options.workMode === 'remoto_global';
 
-  // 1. Live LinkedIn Guest Jobs Search directed by the user's Título Profissional, Seniority, Location, Modality & Date Posted
+  // 1. Live LinkedIn Guest Jobs Search directed by customQueryTitle, Seniority, Location & Modality
   try {
     const startOffset = scrapePageOffset;
     scrapePageOffset = (scrapePageOffset + 10) % 40;
     const tprPart = query.timePostedParam ? `&f_TPR=${query.timePostedParam}` : '';
+    const geoPart = isBrazilOnly ? '&geoId=106057199' : '';
     const liSearchUrl = `https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=${encodeURIComponent(
       query.keywords
-    )}&location=${encodeURIComponent(query.location)}&f_WT=${encodeURIComponent(query.remoteFilter)}${tprPart}&start=${startOffset}`;
+    )}&location=${encodeURIComponent(query.location)}${geoPart}&f_WT=${encodeURIComponent(query.remoteFilter)}${tprPart}&start=${startOffset}`;
 
     const liResp = await fetchImpl(liSearchUrl, {
       headers: {
@@ -298,7 +305,14 @@ export async function collectRemoteDevOpsJobs(
           });
         }
       } else {
-        const parsedCards = parseLinkedInGuestSearchHtml(bodyText);
+        const parsedCards = parseLinkedInGuestSearchHtml(bodyText).filter((card) => {
+          if (!isBrazilOnly) return true;
+          const locLower = card.location.toLowerCase();
+          if (/\b(worldwide|united states|usa|europe|uk|united kingdom|germany|canada|india|apac|emea)\b/i.test(locLower)) {
+            return /\b(brasil|brazil)\b/i.test(locLower);
+          }
+          return true;
+        });
         sourceSummary.push(`LinkedIn Jobs (${parsedCards.length} vagas encontradas para "${query.keywords}")`);
 
         // Fetch full descriptions in parallel for up to 7 cards
@@ -346,80 +360,133 @@ export async function collectRemoteDevOpsJobs(
     // Continue to secondary feeds
   }
 
-  // 2. Live Jobicy Remote API directed by roleTitle
-  try {
-    const roleSlug = query.roleTitle.toLowerCase().split(/\s+/)[0] || 'devops';
-    const jobicyResp = await fetchImpl(`https://jobicy.com/api/v2/remote-jobs?count=6&tag=${encodeURIComponent(roleSlug)}`, {
-      headers: { 'user-agent': 'CamaleaoATS/1.0' }
-    });
-    if (jobicyResp.ok) {
-      const data = (await jobicyResp.json()) as {
-        jobs?: Array<{
-          jobTitle?: string;
-          companyName?: string;
-          url?: string;
-          jobGeo?: string;
-          jobDescription?: string;
-          pubDate?: string;
-        }>;
-      };
-      if (Array.isArray(data.jobs)) {
-        sourceSummary.push(`Jobicy Remote (${data.jobs.length} vagas para "${roleSlug}")`);
-        for (const item of data.jobs.slice(0, 5)) {
-          if (!item.jobTitle || !item.companyName || !item.url) continue;
-          candidates.push({
-            title: item.jobTitle,
-            company: item.companyName,
-            url: item.url,
-            platform: detectPlatformFromUrl(item.url),
-            location: `100% Remote (${item.jobGeo || 'Worldwide'})`,
-            description: stripHtmlTags(item.jobDescription || item.jobTitle),
-            postedAt: item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString()
-          });
+  // 2. When Local is Brasil, also query Gupy Public Brazil Portal API (never Worldwide boards)
+  if (isBrazilOnly) {
+    try {
+      const gupyResp = await fetchImpl(
+        `https://portal.api.gupy.io/api/v1/jobs?jobName=${encodeURIComponent(query.roleTitle)}&limit=8`,
+        { headers: { 'user-agent': 'CamaleaoATS/1.0', accept: 'application/json' } }
+      );
+      if (gupyResp.ok) {
+        const gupyData = (await gupyResp.json()) as {
+          data?: Array<{
+            name?: string;
+            careerPageName?: string;
+            jobUrl?: string;
+            city?: string;
+            state?: string;
+            country?: string;
+            isRemoteWork?: boolean;
+            workplaceType?: string;
+            description?: string;
+            publishedDate?: string;
+          }>;
+        };
+        if (Array.isArray(gupyData.data)) {
+          sourceSummary.push(`Gupy Brasil (${gupyData.data.length} vagas para "${query.roleTitle}")`);
+          for (const g of gupyData.data.slice(0, 6)) {
+            if (!g.name || !g.careerPageName || !g.jobUrl) continue;
+            const modeStr =
+              g.workplaceType === 'hybrid'
+                ? 'Híbrido'
+                : g.workplaceType === 'on-site'
+                ? 'Presencial'
+                : g.isRemoteWork
+                ? 'Remoto'
+                : 'Brasil';
+            const cityState = [g.city, g.state].filter(Boolean).join(' - ') || 'Brasil';
+            candidates.push({
+              title: g.name,
+              company: g.careerPageName,
+              url: g.jobUrl,
+              platform: 'Gupy',
+              location: `${cityState} (${modeStr})`,
+              description: stripHtmlTags(g.description || g.name),
+              postedAt: g.publishedDate ? new Date(g.publishedDate).toISOString() : new Date().toISOString()
+            });
+          }
         }
       }
+    } catch {
+      // Continue
     }
-  } catch {
-    // Continue
   }
 
-  // 3. Live Remotive API directed by roleTitle
-  try {
-    const remResp = await fetchImpl(
-      `https://remotive.com/api/remote-jobs?search=${encodeURIComponent(query.roleTitle)}&limit=6`,
-      {
+  // 3. Worldwide feeds (Jobicy & Remotive) ONLY when Global/LatAm is selected (or in unit test without locationFilter='br')
+  if (isWorldwideRequested || !isBrazilOnly) {
+    try {
+      const roleSlug = query.roleTitle.toLowerCase().split(/\s+/)[0] || 'devops';
+      const jobicyResp = await fetchImpl(`https://jobicy.com/api/v2/remote-jobs?count=6&tag=${encodeURIComponent(roleSlug)}`, {
         headers: { 'user-agent': 'CamaleaoATS/1.0' }
-      }
-    );
-    if (remResp.ok) {
-      const payload = (await remResp.json()) as {
-        jobs?: Array<{
-          title?: string;
-          company_name?: string;
-          url?: string;
-          candidate_required_location?: string;
-          description?: string;
-          publication_date?: string;
-        }>;
-      };
-      if (Array.isArray(payload.jobs)) {
-        sourceSummary.push(`Remotive (${payload.jobs.length} vagas para "${query.roleTitle}")`);
-        for (const item of payload.jobs.slice(0, 5)) {
-          if (!item.title || !item.company_name || !item.url) continue;
-          candidates.push({
-            title: item.title,
-            company: item.company_name,
-            url: item.url,
-            platform: detectPlatformFromUrl(item.url),
-            location: item.candidate_required_location || '100% Remote',
-            description: stripHtmlTags(item.description || item.title),
-            postedAt: item.publication_date ? new Date(item.publication_date).toISOString() : new Date().toISOString()
-          });
+      });
+      if (jobicyResp.ok) {
+        const data = (await jobicyResp.json()) as {
+          jobs?: Array<{
+            jobTitle?: string;
+            companyName?: string;
+            url?: string;
+            jobGeo?: string;
+            jobDescription?: string;
+            pubDate?: string;
+          }>;
+        };
+        if (Array.isArray(data.jobs)) {
+          sourceSummary.push(`Jobicy Remote (${data.jobs.length} vagas para "${roleSlug}")`);
+          for (const item of data.jobs.slice(0, 5)) {
+            if (!item.jobTitle || !item.companyName || !item.url) continue;
+            candidates.push({
+              title: item.jobTitle,
+              company: item.companyName,
+              url: item.url,
+              platform: detectPlatformFromUrl(item.url),
+              location: `100% Remote (${item.jobGeo || 'Worldwide'})`,
+              description: stripHtmlTags(item.jobDescription || item.jobTitle),
+              postedAt: item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString()
+            });
+          }
         }
       }
+    } catch {
+      // Continue
     }
-  } catch {
-    // Offline fallback
+
+    try {
+      const remResp = await fetchImpl(
+        `https://remotive.com/api/remote-jobs?search=${encodeURIComponent(query.roleTitle)}&limit=6`,
+        {
+          headers: { 'user-agent': 'CamaleaoATS/1.0' }
+        }
+      );
+      if (remResp.ok) {
+        const payload = (await remResp.json()) as {
+          jobs?: Array<{
+            title?: string;
+            company_name?: string;
+            url?: string;
+            candidate_required_location?: string;
+            description?: string;
+            publication_date?: string;
+          }>;
+        };
+        if (Array.isArray(payload.jobs)) {
+          sourceSummary.push(`Remotive (${payload.jobs.length} vagas para "${query.roleTitle}")`);
+          for (const item of payload.jobs.slice(0, 5)) {
+            if (!item.title || !item.company_name || !item.url) continue;
+            candidates.push({
+              title: item.title,
+              company: item.company_name,
+              url: item.url,
+              platform: detectPlatformFromUrl(item.url),
+              location: item.candidate_required_location || '100% Remote',
+              description: stripHtmlTags(item.description || item.title),
+              postedAt: item.publication_date ? new Date(item.publication_date).toISOString() : new Date().toISOString()
+            });
+          }
+        }
+      }
+    } catch {
+      // Offline fallback
+    }
   }
 
   // Fallback only if network is completely unreachable (e.g., offline unit test)

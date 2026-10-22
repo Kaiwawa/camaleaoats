@@ -88,7 +88,7 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
       const method = req.method || 'GET';
 
       // Block Cross-Origin Drive-By CSRF attacks against local/self-hosted instance
-      if (method === 'POST' && pathname.startsWith('/api/')) {
+      if ((method === 'POST' || method === 'DELETE') && pathname.startsWith('/api/')) {
         const origin = req.headers.origin;
         if (origin) {
           try {
@@ -120,6 +120,7 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
 
       if (method === 'POST' && pathname === '/api/jobs/scrape') {
         const body = await readJsonBody(req);
+        const customQueryTitle = body.customQueryTitle ? String(body.customQueryTitle).trim() : undefined;
         const seniorityFilter = body.seniorityFilter ? (String(body.seniorityFilter) as JobSeniority | 'all') : 'all';
         const seniorities = Array.isArray(body.seniorities) ? body.seniorities.map(String) : undefined;
         const workMode = body.workMode
@@ -131,6 +132,7 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
           : undefined;
         db.deleteDemoJobs();
         const result = await collectRemoteDevOpsJobs(db, fetch, {
+          customQueryTitle,
           seniorityFilter,
           seniorities,
           workMode,
@@ -210,6 +212,26 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
         const deletedCount = db.clearOpenJobs();
         return sendJson(res, 200, {
           deletedCount,
+          jobs: db.listJobs()
+        });
+      }
+
+      if (method === 'POST' && pathname === '/api/jobs/clear-unsuccessful') {
+        const deletedCount = db.clearJobsByStatus('sem_sucesso');
+        return sendJson(res, 200, {
+          deletedCount,
+          jobs: db.listJobs()
+        });
+      }
+
+      const deleteJobMatch = pathname.match(/^\/api\/jobs\/(\d+)(?:\/delete)?$/);
+      if ((method === 'DELETE' || (method === 'POST' && pathname.endsWith('/delete'))) && deleteJobMatch) {
+        const jobId = Number(deleteJobMatch[1]);
+        const deleted = db.deleteJob(jobId);
+        if (!deleted) return sendJson(res, 404, { error: 'Job not found' });
+        rescoreAllJobs();
+        return sendJson(res, 200, {
+          deleted: true,
           jobs: db.listJobs()
         });
       }

@@ -1051,8 +1051,25 @@ export class AppDatabase {
   }
 
   public clearOpenJobs(): number {
-    const res = this.db.prepare(`DELETE FROM jobs WHERE status = 'abertas'`).run();
+    return this.clearJobsByStatus('abertas');
+  }
+
+  public clearJobsByStatus(status: KanbanStatus): number {
+    const res = this.db.prepare(`DELETE FROM jobs WHERE status = ?`).run(status);
+    if (status === 'ruins') {
+      this.recalculatePreferenceWeights();
+    }
     return Number(res.changes ?? 0);
+  }
+
+  public deleteJob(id: number): boolean {
+    const existing = this.getJob(id);
+    if (!existing) return false;
+    const res = this.db.prepare(`DELETE FROM jobs WHERE id = ?`).run(id);
+    if (existing.status === 'ruins') {
+      this.recalculatePreferenceWeights();
+    }
+    return Number(res.changes ?? 0) > 0;
   }
 
   public moveJob(id: number, status: KanbanStatus, reason = ''): Job {

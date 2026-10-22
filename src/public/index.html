@@ -9,47 +9,10 @@
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <!-- Top Navigation Bar (Clean SaaS Header — Checkboxes for Seniority & Modality, Separated Location, Date Filter) -->
+  <!-- Top Navigation Bar (Clean SaaS Header) -->
   <header class="topbar">
     <div class="brand-group">
       <div class="logo">🦎 Camaleão<span>ATS</span></div>
-
-      <!-- 1. Senioridade Desejada (Caixas de Seleção dentro de Menu Suspenso) -->
-      <div class="filter-group check-dropdown" id="topbar-seniority-group">
-        <span class="filter-label">Senioridade:</span>
-        <button type="button" class="check-dropdown-toggle" id="btn-seniority-dropdown" aria-expanded="false">
-          <span id="label-seniority-dropdown">Todas</span> ▾
-        </button>
-        <div class="check-dropdown-menu hidden" id="filter-seniority-checks" role="group" aria-label="Senioridade desejada">
-          <label class="check-menu-item"><input type="checkbox" name="sen-check" value="estagio" /><span>Estágio / Trainee</span></label>
-          <label class="check-menu-item"><input type="checkbox" name="sen-check" value="junior" /><span>Júnior</span></label>
-          <label class="check-menu-item"><input type="checkbox" name="sen-check" value="pleno" /><span>Pleno</span></label>
-          <label class="check-menu-item"><input type="checkbox" name="sen-check" value="senior" /><span>Sênior</span></label>
-          <label class="check-menu-item"><input type="checkbox" name="sen-check" value="especialista" /><span>Especialista / Staff</span></label>
-        </div>
-      </div>
-
-      <!-- 2. Modalidade (Caixas de Seleção dentro de Menu Suspenso: Todas quando nenhuma selecionada) -->
-      <div class="filter-group check-dropdown" id="topbar-modality-group">
-        <span class="filter-label">Modalidade:</span>
-        <button type="button" class="check-dropdown-toggle" id="btn-modality-dropdown" aria-expanded="false">
-          <span id="label-modality-dropdown">Todas</span> ▾
-        </button>
-        <div class="check-dropdown-menu hidden" id="filter-modality-checks" role="group" aria-label="Modalidade da vaga">
-          <label class="check-menu-item"><input type="checkbox" name="mod-check" value="remoto" /><span>Remoto</span></label>
-          <label class="check-menu-item"><input type="checkbox" name="mod-check" value="hibrido" /><span>Híbrido</span></label>
-          <label class="check-menu-item"><input type="checkbox" name="mod-check" value="presencial" /><span>Presencial</span></label>
-        </div>
-      </div>
-
-      <!-- 3. Local (Brasil vs Global/LatAm) -->
-      <div class="filter-group">
-        <label for="select-location" class="filter-label">Local:</label>
-        <select id="select-location" class="select-compact">
-          <option value="br">🌎 Brasil</option>
-          <option value="global">🌐 Global / LatAm</option>
-        </select>
-      </div>
     </div>
 
     <div class="actions-group">
@@ -82,6 +45,12 @@
           <button type="button" class="kanban-clear-btn" id="btn-clear-open-jobs" title="Limpar todas as vagas da coluna Vagas Abertas">
             🧹 Limpar
           </button>
+          <div class="kanban-filter-wrapper" data-col-filter="abertas">
+            <button type="button" class="kanban-filter-btn" data-toggle-col-filter="abertas" title="Filtrar vagas desta coluna por Senioridade, Modalidade e Local">
+              🌪️ <span class="col-filter-btn-label" id="col-filter-label-abertas">Filtros</span> ▾
+            </button>
+            <div class="kanban-filter-popover hidden" id="col-filter-popover-abertas"></div>
+          </div>
           <div class="date-filter-wrapper">
             <button type="button" class="kanban-date-btn" id="btn-date-filter" title="Filtrar visualização por horário/data de postagem (somente leitura)">
               🕒 <span id="date-filter-label">Qualquer horário</span> ▾
@@ -103,7 +72,15 @@
     <section class="kanban-col kanban-col-wide" data-status="em_processo">
       <div class="kanban-col-header">
         <span>⏳ Em Processo</span>
-        <span class="count-badge" id="count-em_processo">0</span>
+        <div class="kanban-header-controls">
+          <div class="kanban-filter-wrapper" data-col-filter="em_processo">
+            <button type="button" class="kanban-filter-btn" data-toggle-col-filter="em_processo" title="Filtrar vagas desta coluna por Senioridade, Modalidade e Local">
+              🌪️ <span class="col-filter-btn-label" id="col-filter-label-em_processo">Filtros</span> ▾
+            </button>
+            <div class="kanban-filter-popover hidden" id="col-filter-popover-em_processo"></div>
+          </div>
+          <span class="count-badge" id="count-em_processo">0</span>
+        </div>
       </div>
       <div class="kanban-cards" id="col-em_processo" data-drop-status="em_processo"></div>
     </section>
@@ -112,7 +89,18 @@
       <section class="kanban-col" data-status="sem_sucesso">
         <div class="kanban-col-header">
           <span>❌ Sem Sucesso</span>
-          <span class="count-badge" id="count-sem_sucesso">0</span>
+          <div class="kanban-header-controls">
+            <button type="button" class="kanban-clear-btn" id="btn-clear-unsuccessful-jobs" title="Limpar todas as vagas da coluna Sem Sucesso">
+              🧹 Limpar
+            </button>
+            <div class="kanban-filter-wrapper" data-col-filter="sem_sucesso">
+              <button type="button" class="kanban-filter-btn" data-toggle-col-filter="sem_sucesso" title="Filtrar vagas desta coluna por Senioridade, Modalidade e Local">
+                🌪️ <span class="col-filter-btn-label" id="col-filter-label-sem_sucesso">Filtros</span> ▾
+              </button>
+              <div class="kanban-filter-popover hidden" id="col-filter-popover-sem_sucesso"></div>
+            </div>
+            <span class="count-badge" id="count-sem_sucesso">0</span>
+          </div>
         </div>
         <div class="kanban-cards" id="col-sem_sucesso" data-drop-status="sem_sucesso"></div>
       </section>
@@ -120,7 +108,15 @@
       <section class="kanban-col kanban-col-bad" data-status="ruins">
         <div class="kanban-col-header">
           <span>🗑️ Vagas Ruins (Filtro)</span>
-          <span class="count-badge" id="count-ruins">0</span>
+          <div class="kanban-header-controls">
+            <div class="kanban-filter-wrapper" data-col-filter="ruins">
+              <button type="button" class="kanban-filter-btn" data-toggle-col-filter="ruins" title="Filtrar vagas desta coluna por Senioridade, Modalidade e Local">
+                🌪️ <span class="col-filter-btn-label" id="col-filter-label-ruins">Filtros</span> ▾
+              </button>
+              <div class="kanban-filter-popover hidden" id="col-filter-popover-ruins"></div>
+            </div>
+            <span class="count-badge" id="count-ruins">0</span>
+          </div>
         </div>
         <div class="kanban-cards" id="col-ruins" data-drop-status="ruins"></div>
       </section>
@@ -173,10 +169,11 @@
 
           <div class="kanban-move-bar">
             <span>Mover para:</span>
-            <button type="button" class="btn btn-sm" data-move="abertas">📥 Abertas</button>
+            <button type="button" class="btn btn-sm" data-move="abertas">📥 Vagas Abertas</button>
             <button type="button" class="btn btn-sm" data-move="em_processo">⏳ Em Processo</button>
             <button type="button" class="btn btn-sm" data-move="sem_sucesso">❌ Sem Sucesso</button>
             <button type="button" class="btn btn-sm btn-danger" data-move="ruins">👎 Vaga Ruim</button>
+            <button type="button" class="btn btn-sm btn-danger" id="btn-delete-job-modal" title="Excluir esta vaga permanentemente">🗑️ Excluir Vaga</button>
           </div>
         </div>
 
@@ -348,7 +345,7 @@
               <input type="url" id="prof-github" placeholder="https://github.com/seu-usuario" />
             </div>
             <div>
-              <label>Título Profissional (🎯 Direciona a pesquisa de vagas)</label>
+              <label>Título Profissional (📄 Usado somente no CV atualizado)</label>
               <input type="text" id="prof-title-pt" placeholder="DevOps Engineer | Cloud & Containers" />
             </div>
           </div>
@@ -927,20 +924,21 @@
     </div>
   </div>
 
-  <!-- POPUP 10: Confirmação no Primeiro Clique em "🔄 Buscar Vagas" -->
+  <!-- POPUP 10: Popup de Busca de Vagas (Sempre aparece ao clicar em "🔄 Buscar Vagas") -->
   <div id="scrape-confirm-modal-backdrop" class="modal-backdrop hidden" style="z-index: 1600;">
     <div class="modal-window modal-window-confirm">
       <div class="modal-header">
         <div>
-          <h2>🔍 Confirmar Parâmetros da Busca de Vagas</h2>
-          <p class="modal-subtitle">Confirme a Senioridade, Modalidade e Local antes de iniciar a busca direcionada pelo seu Título Profissional.</p>
+          <h2>🔍 Buscar Vagas</h2>
+          <p class="modal-subtitle">Informe o título da vaga que deseja buscar junto das opções de Senioridade, Modalidade e Local.</p>
         </div>
         <button type="button" class="btn-close" id="btn-close-scrape-confirm">✕</button>
       </div>
       <div class="modal-content-padded modal-content-confirm">
         <div class="add-item-card confirm-card-box">
-          <div style="margin-bottom: 14px; font-size: 13px; color: var(--muted);">
-            🎯 Título Profissional que direciona a pesquisa: <strong id="confirm-scrape-title" style="color: var(--text);">DevOps Engineer</strong>
+          <div style="margin-bottom: 14px;">
+            <label for="scrape-job-title-input">🎯 Título da Vaga que você quer buscar</label>
+            <input type="text" id="scrape-job-title-input" placeholder="Ex: DevOps Engineer, SRE, Cloud AWS, Analista de Infraestrutura..." />
           </div>
 
           <div class="form-grid-3 confirm-filters-grid">
@@ -978,7 +976,7 @@
           </div>
           <div class="confirm-actions-row">
             <button type="button" class="btn btn-secondary btn-sm" id="btn-cancel-scrape-confirm">Cancelar</button>
-            <button type="button" class="btn btn-primary btn-sm" id="btn-confirm-scrape-run">✅ Confirmar e Buscar Vagas</button>
+            <button type="button" class="btn btn-primary btn-sm" id="btn-confirm-scrape-run">✅ Buscar Vagas</button>
           </div>
         </div>
       </div>

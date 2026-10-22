@@ -215,7 +215,8 @@ body {
   color: var(--text);
 }
 
-.date-filter-wrapper {
+.date-filter-wrapper,
+.kanban-filter-wrapper {
   position: relative;
 }
 
@@ -223,6 +224,7 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
 }
 
 .kanban-clear-btn {
@@ -241,11 +243,12 @@ body {
 }
 
 .kanban-clear-btn:hover {
-  border-color: var(--danger);
-  color: var(--danger);
-  background: var(--danger-soft);
+  border-color: var(--red);
+  color: var(--red);
+  background: rgba(220, 38, 38, 0.12);
 }
 
+.kanban-filter-btn,
 .kanban-date-btn {
   display: inline-flex;
   align-items: center;
@@ -261,8 +264,54 @@ body {
   transition: border-color 0.14s ease, background 0.14s ease;
 }
 
+.kanban-filter-btn:hover,
+.kanban-filter-btn.has-active-filters,
 .kanban-date-btn:hover {
   border-color: var(--primary);
+}
+
+.kanban-filter-btn.has-active-filters {
+  background: rgba(37, 99, 235, 0.16);
+}
+
+.kanban-filter-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  left: auto;
+  width: 260px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: var(--shadow);
+  z-index: 2600;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-weight: 500;
+}
+
+.col-filter-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.col-filter-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+
+.col-filter-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
 }
 
 .date-filter-popover {
@@ -526,7 +575,7 @@ html[data-theme="light"] .toast-popup {
   gap: 16px;
   height: 100%;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .kanban-col-stack > .kanban-col {
@@ -622,6 +671,31 @@ html[data-theme="light"] .kanban-col {
   justify-content: space-between;
   align-items: flex-start;
   gap: 8px;
+}
+
+.job-card-top-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.card-delete-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 2px 5px;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+
+.card-delete-btn:hover {
+  color: var(--red);
+  border-color: var(--red);
+  background: rgba(220, 38, 38, 0.14);
 }
 
 .job-card-title {
