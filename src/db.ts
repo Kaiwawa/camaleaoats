@@ -1050,6 +1050,11 @@ export class AppDatabase {
     return rows.map((r) => this.mapJobRow(r));
   }
 
+  public clearOpenJobs(): number {
+    const res = this.db.prepare(`DELETE FROM jobs WHERE status = 'abertas'`).run();
+    return Number(res.changes ?? 0);
+  }
+
   public moveJob(id: number, status: KanbanStatus, reason = ''): Job {
     const job = this.getJob(id);
     if (!job) throw new Error(`Job ${id} not found`);

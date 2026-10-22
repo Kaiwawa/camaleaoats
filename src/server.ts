@@ -187,6 +187,14 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
         return res.end(pdfBuffer);
       }
 
+      if (method === 'POST' && pathname === '/api/jobs/clear-open') {
+        const deletedCount = db.clearOpenJobs();
+        return sendJson(res, 200, {
+          deletedCount,
+          jobs: db.listJobs()
+        });
+      }
+
       const moveMatch = pathname.match(/^\/api\/jobs\/(\d+)\/move$/);
       if (method === 'POST' && moveMatch) {
         const jobId = Number(moveMatch[1]);
@@ -494,7 +502,9 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
         '/': { file: 'index.html', type: 'text/html; charset=utf-8' },
         '/index.html': { file: 'index.html', type: 'text/html; charset=utf-8' },
         '/styles.css': { file: 'styles.css', type: 'text/css; charset=utf-8' },
-        '/app.js': { file: 'app.js', type: 'application/javascript; charset=utf-8' }
+        '/app.js': { file: 'app.js', type: 'application/javascript; charset=utf-8' },
+        '/favicon.svg': { file: 'favicon.svg', type: 'image/svg+xml; charset=utf-8' },
+        '/favicon.ico': { file: 'favicon.svg', type: 'image/svg+xml; charset=utf-8' }
       };
 
       const target = fileMap[pathname];

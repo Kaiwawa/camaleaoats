@@ -222,7 +222,28 @@ body {
 .kanban-header-controls {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+}
+
+.kanban-clear-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.14s ease, color 0.14s ease, background 0.14s ease;
+}
+
+.kanban-clear-btn:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: var(--danger-soft);
 }
 
 .kanban-date-btn {

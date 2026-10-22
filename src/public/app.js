@@ -348,6 +348,25 @@ document.querySelectorAll('#filter-modality-checks input[name="mod-check"]').for
   });
 });
 
+// Clear all jobs in "Vagas Abertas" column
+const clearOpenJobsBtn = document.getElementById('btn-clear-open-jobs');
+if (clearOpenJobsBtn) {
+  clearOpenJobsBtn.addEventListener('click', async () => {
+    const openCount = state.jobs.filter((j) => j.status === 'abertas').length;
+    if (openCount === 0) {
+      showToast('A coluna "Vagas Abertas" já está vazia.');
+      return;
+    }
+    const res = await fetch('/api/jobs/clear-open', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' }
+    });
+    const data = await res.json();
+    await loadBootstrap();
+    showToast(`Coluna "Vagas Abertas" limpa (${data.deletedCount || openCount} vaga(s) removida(s))!`);
+  });
+}
+
 // Read-only Time/Date Filter inside Kanban Header (next to count-abertas)
 const dateFilterBtn = document.getElementById('btn-date-filter');
 const dateFilterPopover = document.getElementById('date-filter-popover');

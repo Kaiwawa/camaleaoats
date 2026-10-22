@@ -183,5 +183,20 @@ test('API serves Kanban bootstrap, bilingual job popup detail with Gupy kit & hi
   const xssProjData = await xssProjRes.json();
   const safeProj = xssProjData.profile.personalProjects.find((p: { name: string }) => p.name === 'Safe Project');
   assert.equal(safeProj.url, '');
+
+  // 11. Verify lizard/chameleon SVG favicon and clearing Vagas Abertas column
+  const favRes = await fetch(`${baseUrl}/favicon.svg`);
+  assert.equal(favRes.status, 200);
+  const favSvg = await favRes.text();
+  assert.ok(favSvg.includes('🦎'));
+
+  const clearRes = await fetch(`${baseUrl}/api/jobs/clear-open`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' }
+  });
+  assert.equal(clearRes.status, 200);
+  const clearData = await clearRes.json();
+  assert.ok(clearData.deletedCount >= 1);
+  assert.equal(clearData.jobs.filter((j: { status: string }) => j.status === 'abertas').length, 0);
 });
 
