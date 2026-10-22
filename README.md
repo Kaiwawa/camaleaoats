@@ -1,5 +1,10 @@
 # 🦎 CamaleãoATS
 
+[![Build & Push Image with SBOM](https://github.com/Kaiwawa/camaleaoats/actions/workflows/build.yaml/badge.svg?branch=main)](https://github.com/Kaiwawa/camaleaoats/actions/workflows/build.yaml)
+[![GHCR Container](https://img.shields.io/badge/GHCR-ghcr.io%2Fkaiwawa%2Fcamaleaoats-2496ED?logo=docker&logoColor=white)](https://github.com/Kaiwawa/camaleaoats/pkgs/container/camaleaoats)
+[![SBOM CycloneDX](https://img.shields.io/badge/SBOM-CycloneDX%20%28Trivy%29-10b981?logo=securityscorecard&logoColor=white)](https://github.com/Kaiwawa/camaleaoats/actions/workflows/build.yaml)
+[![Node.js 24](https://img.shields.io/badge/Node.js-24%20LTS-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+
 **CamaleãoATS** é uma plataforma web inteligente e bilíngue (**Português `pt-BR`** e **Inglês `en`**) para busca direcionada de vagas de tecnologia, gestão de candidaturas em **Kanban**, adaptação honesta de currículo otimizado para **ATS (PDF)**, geração de textos para a **Gupy (IA Gaia)** e abordagem estratégica de **Tech Recruiters no LinkedIn**.
 
 ---
