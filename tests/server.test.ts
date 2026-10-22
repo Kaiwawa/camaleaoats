@@ -82,4 +82,38 @@ test('API serves Kanban bootstrap, bilingual job popup detail with Gupy kit & hi
   const evolved = await evolveRes.json();
   const updatedK8s = evolved.profile.skills.find((s: { name: string }) => s.name === 'Kubernetes');
   assert.equal(updatedK8s.level, 'solid');
+
+  // 7. Extract CV text into profile
+  const extractRes = await fetch(`${baseUrl}/api/profile/extract-cv`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      rawText: 'Carlos SRE\ncarlos@sre.dev\nFormação: Pós-Graduação em Cloud Computing - PUC (2025)\nProjeto Pessoal: Cluster Kubernetes e ArgoCD automatizado com Terraform.'
+    })
+  });
+  assert.equal(extractRes.status, 200);
+  const extractedData = await extractRes.json();
+  assert.equal(extractedData.profile.name, 'Carlos SRE');
+  assert.ok(extractedData.profile.educations.some((e: { institution: string }) => e.institution.includes('PUC')));
+
+  // 8. Save Settings & Agent Markdown
+  const settingsRes = await fetch(`${baseUrl}/api/settings`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ aiProvider: 'gemini', apiKey: 'AIza-test', theme: 'dark' })
+  });
+  assert.equal(settingsRes.status, 200);
+  const savedSettings = await settingsRes.json();
+  assert.equal(savedSettings.settings.aiProvider, 'gemini');
+  assert.equal(savedSettings.settings.theme, 'dark');
+
+  const agentRes = await fetch(`${baseUrl}/api/agents/cv-adapter.md`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ content: '# Custom CV Adapter MD\nStrict rules.' })
+  });
+  assert.equal(agentRes.status, 200);
+  const updatedAgent = await agentRes.json();
+  assert.equal(updatedAgent.agent.content, '# Custom CV Adapter MD\nStrict rules.');
 });
+

@@ -4,6 +4,7 @@ import { AppDatabase } from '../src/db.ts';
 import {
   analyzeAndHighlightJob,
   detectJobLanguage,
+  extractProfileFromCvText,
   generateHonestTailoredCv,
   generateRecruiterMessages,
   ANTI_HALLUCINATION_SYSTEM_PROMPT
@@ -141,4 +142,33 @@ test('test_gupy_apresentese_reflects_evolved_kubernetes_framing', () => {
 
   assert.match(cvPt.gupyKit.apresenteseText, /Administra[çc][ãa]o avan[çc]ada de clusters Kubernetes multi-node/i);
 });
+
+test('includes personal projects in tailored CV only when relevant to job stack and extracts profile from raw CV text', () => {
+  const db = new AppDatabase(':memory:');
+  const extracted = extractProfileFromCvText(
+    `João DevOps Silva
+     joao.devops@email.com | +55 11 98888-7777 | https://linkedin.com/in/joaodevops
+     Formação: Bacharelado em Ciência da Computação - USP (2023)
+     Certificações: AWS Certified Solutions Architect - Associate (SAA-C03)
+     Skills: Docker, AWS, ArgoCD, GitHub Actions, Kubernetes, Terraform, Grafana, Prometheus
+     Projeto Pessoal: Observabilidade Homelab com Grafana e Prometheus monitorando containers Docker.`,
+    db
+  );
+
+  assert.equal(extracted.name, 'João DevOps Silva');
+  assert.equal(extracted.email, 'joao.devops@email.com');
+  assert.ok(extracted.educations.some((e) => e.course.includes('Ciência da Computação') || e.institution.includes('USP')));
+
+  const cvWithRelevantProject = generateHonestTailoredCv(
+    {
+      title: 'SRE Observability Engineer',
+      company: 'MetricsCorp',
+      description: 'Buscamos SRE com Docker, Grafana e Prometheus para observabilidade.'
+    },
+    extracted,
+    'pt-BR'
+  );
+  assert.ok(cvWithRelevantProject.relevantProjects.length >= 1);
+});
+
 

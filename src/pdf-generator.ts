@@ -89,10 +89,43 @@ export function generateAtsPdfBuffer(cv: TailoredCv, profile: Profile): Buffer {
     text: isEn ? 'CERTIFICATIONS' : 'CERTIFICACOES & CREDENCIAIS',
     font: 'F2',
     size: 11,
-    spacingBefore: 12
+    spacingBefore: 10
   });
   for (const cert of cv.certifications) {
     lines.push({ text: `- ${cert}`, font: 'F2', size: 9.5, spacingBefore: 2 });
+  }
+
+  // Education section
+  if (cv.educations && cv.educations.length > 0) {
+    lines.push({
+      text: isEn ? 'EDUCATION & DEGREES' : 'FORMACAO ACADEMICA & ENSINO',
+      font: 'F2',
+      size: 11,
+      spacingBefore: 10
+    });
+    for (const edu of cv.educations) {
+      const eduText = `- ${edu.degree}: ${edu.course} - ${edu.institution}${edu.year ? ` (${edu.year})` : ''} [${edu.status}]`;
+      for (const l of wrapText(eduText, 90)) {
+        lines.push({ text: l, font: 'F1', size: 9.5, spacingBefore: 2 });
+      }
+    }
+  }
+
+  // Relevant Personal Projects (included dynamically when matching the job stack)
+  if (cv.relevantProjects && cv.relevantProjects.length > 0) {
+    lines.push({
+      text: isEn ? 'RELEVANT TECHNICAL PROJECTS' : 'PROJETOS TECNICOS RELEVANTES PARA A VAGA',
+      font: 'F2',
+      size: 11,
+      spacingBefore: 10
+    });
+    for (const proj of cv.relevantProjects) {
+      const projDesc = isEn ? proj.descriptionEn : proj.descriptionPt;
+      const projLine = `- ${proj.name} (${proj.techStack.join(', ')}): ${projDesc}`;
+      for (const l of wrapText(projLine, 90)) {
+        lines.push({ text: l, font: 'F1', size: 9.5, spacingBefore: 2 });
+      }
+    }
   }
 
   // Core Technical Skills & Practical Experience

@@ -77,3 +77,41 @@ test('moving job to ruins records negative preference weights', () => {
   const weights = db.getPreferenceWeights();
   assert.ok((weights['hibrido'] ?? 0) < 0 || (weights['presencial'] ?? 0) < 0);
 });
+
+test('separates certifications (without seniority level), educations, personal projects, settings and agent MDs', () => {
+  const db = new AppDatabase(':memory:');
+  db.addCertification({ name: 'HashiCorp Certified: Terraform Associate', issuer: 'HashiCorp', year: '2026' });
+  db.addEducation({
+    course: 'Análise e Desenvolvimento de Sistemas',
+    institution: 'FIAP',
+    degree: 'Tecnólogo (Graduação)',
+    status: 'Concluído',
+    year: '2024'
+  });
+  db.addPersonalProject({
+    name: 'Homelab GitOps Cluster',
+    techStack: ['Kubernetes', 'Kind', 'ArgoCD', 'Docker'],
+    descriptionPt: 'Cluster Kubernetes local provisionado com Kind e entrega contínua via ArgoCD.',
+    descriptionEn: 'Local Kubernetes cluster provisioned with Kind and GitOps continuous delivery via ArgoCD.'
+  });
+
+  const profile = db.getProfile();
+  const tfCert = profile.certificationItems.find((c) => c.name.includes('Terraform Associate'));
+  assert.ok(tfCert);
+  assert.equal('level' in (tfCert as unknown as Record<string, unknown>), false);
+  assert.ok(profile.educations.some((e) => e.institution === 'FIAP'));
+  assert.ok(profile.personalProjects.some((p) => p.name === 'Homelab GitOps Cluster'));
+
+  const agents = db.listAgentPrompts();
+  assert.ok(agents.some((a) => a.slug === 'cv-adapter.md'));
+  db.updateAgentPrompt('cv-adapter.md', '# Custom Agent Rule\nNever hallucinate.');
+  assert.equal(
+    db.listAgentPrompts().find((a) => a.slug === 'cv-adapter.md')?.content,
+    '# Custom Agent Rule\nNever hallucinate.'
+  );
+
+  const settings = db.updateSettings({ aiProvider: 'openai', apiKey: 'sk-test-123', theme: 'light' });
+  assert.equal(settings.aiProvider, 'openai');
+  assert.equal(settings.theme, 'light');
+});
+

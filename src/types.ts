@@ -2,6 +2,8 @@ export type Language = 'pt-BR' | 'en';
 export type SkillLevel = 'evolving' | 'practical' | 'solid';
 export type KanbanStatus = 'abertas' | 'em_processo' | 'sem_sucesso' | 'ruins';
 export type RecruiterStatus = 'nao_enviado' | 'aguardando_aceite' | 'dm_enviada';
+export type JobSeniority = 'estagio' | 'junior' | 'junior_pleno' | 'pleno' | 'senior' | 'especialista';
+export type ThemeMode = 'auto' | 'light' | 'dark';
 
 export interface Skill {
   id: number;
@@ -12,6 +14,32 @@ export interface Skill {
   honestFramingPt: string;
   honestFramingEn: string;
   projectNote?: string;
+}
+
+export interface CertificationItem {
+  id: number;
+  name: string;
+  issuer: string;
+  year: string;
+  credentialUrl?: string;
+}
+
+export interface EducationItem {
+  id: number;
+  course: string;
+  institution: string;
+  degree: string;
+  status: string;
+  year: string;
+}
+
+export interface PersonalProject {
+  id: number;
+  name: string;
+  techStack: string[];
+  descriptionPt: string;
+  descriptionEn: string;
+  url?: string;
 }
 
 export interface Profile {
@@ -28,9 +56,28 @@ export interface Profile {
   baseSummaryPt: string;
   baseSummaryEn: string;
   certifications: string[];
+  certificationItems: CertificationItem[];
+  educations: EducationItem[];
+  personalProjects: PersonalProject[];
   targetSeniority: string;
   targetSeniorityEn: string;
   skills: Skill[];
+}
+
+export interface AppSettings {
+  aiProvider: 'deterministic' | 'openai' | 'gemini' | 'groq' | 'ollama';
+  apiKey: string;
+  modelName: string;
+  baseUrl: string;
+  theme: ThemeMode;
+}
+
+export interface AgentPromptMd {
+  slug: string;
+  title: string;
+  description: string;
+  content: string;
+  updatedAt: string;
 }
 
 export interface NewJobInput {
@@ -39,6 +86,7 @@ export interface NewJobInput {
   url: string;
   platform?: string;
   location?: string;
+  seniority?: JobSeniority;
   description: string;
   language?: Language;
   matchScore?: number;
@@ -54,6 +102,7 @@ export interface Job {
   url: string;
   platform: string;
   location: string;
+  seniority: JobSeniority;
   description: string;
   language: Language;
   status: KanbanStatus;
@@ -79,6 +128,8 @@ export interface TailoredCv {
   targetRoleTitle: string;
   summary: string;
   certifications: string[];
+  educations: EducationItem[];
+  relevantProjects: PersonalProject[];
   highlights: string[];
   experienceBullets: string[];
   orderedSkills: { name: string; level: SkillLevel; framing: string }[];

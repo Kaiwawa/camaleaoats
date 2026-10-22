@@ -3,9 +3,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { AppDatabase } from './db.ts';
-import type { KanbanStatus, Language, RecruiterStatus, SkillLevel } from './types.ts';
+import type { JobSeniority, KanbanStatus, Language, RecruiterStatus, SkillLevel, ThemeMode } from './types.ts';
 import {
   analyzeAndHighlightJob,
+  extractProfileFromCvText,
   generateHonestTailoredCv,
   generateRecruiterMessages
 } from './ats-engine.ts';
@@ -41,6 +42,15 @@ function sendJson(res: http.ServerResponse, status: number, payload: unknown): v
 export function createAppServer(customDb?: AppDatabase): http.Server {
   const db = customDb ?? new AppDatabase(process.env.CAMALEAO_DB_PATH || path.join(process.cwd(), 'data', 'camaleao.db'));
 
+  const rescoreAllJobs = () => {
+    const profile = db.getProfile();
+    const weights = db.getPreferenceWeights();
+    for (const j of db.listJobs()) {
+      const analysis = analyzeAndHighlightJob(j, profile, weights);
+      db.upsertJob({ ...j, matchScore: analysis.matchScore });
+    }
+  };
+
   const server = http.createServer(async (req, res) => {
     try {
       const reqUrl = new URL(req.url || '/', 'http://localhost');
@@ -56,7 +66,9 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
         return sendJson(res, 200, {
           profile: db.getProfile(),
           jobs,
-          preferenceWeights: db.getPreferenceWeights()
+          preferenceWeights: db.getPreferenceWeights(),
+          settings: db.getSettings(),
+          agentPrompts: db.listAgentPrompts()
         });
       }
 
@@ -77,7 +89,10 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
           recruiterUrl: String(body.recruiterUrl ?? ''),
           recruiterEmail: String(body.recruiterEmail ?? '')
         });
-        return sendJson(res, 200, created);
+        if (body.seniority) {
+          db.updateJobSeniority(created.id, String(body.seniority) as JobSeniority);
+        }
+        return sendJson(res, 200, db.getJob(created.id));
       }
 
       const detailMatch = pathname.match(/^\/api\/jobs\/(\d+)\/detail$/);
@@ -135,6 +150,14 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
         });
       }
 
+      const seniorityMatch = pathname.match(/^\/api\/jobs\/(\d+)\/seniority$/);
+      if (method === 'POST' && seniorityMatch) {
+        const jobId = Number(seniorityMatch[1]);
+        const body = await readJsonBody(req);
+        const updated = db.updateJobSeniority(jobId, String(body.seniority) as JobSeniority);
+        return sendJson(res, 200, updated);
+      }
+
       const recruiterMatch = pathname.match(/^\/api\/jobs\/(\d+)\/recruiter$/);
       if (method === 'POST' && recruiterMatch) {
         const jobId = Number(recruiterMatch[1]);
@@ -160,9 +183,75 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
         });
       }
 
+      if (method === 'POST' && pathname === '/api/profile/extract-cv') {
+        const body = await readJsonBody(req);
+        const rawText = String(body.rawText ?? '');
+        const profile = extractProfileFromCvText(rawText, db);
+        rescoreAllJobs();
+        return sendJson(res, 200, {
+          profile,
+          jobs: db.listJobs()
+        });
+      }
+
+      if (method === 'POST' && pathname === '/api/profile/certifications') {
+        const body = await readJsonBody(req);
+        if (body.deleteId) {
+          db.deleteCertification(Number(body.deleteId));
+        } else if (body.name) {
+          db.addCertification({
+            name: String(body.name),
+            issuer: String(body.issuer ?? ''),
+            year: String(body.year ?? ''),
+            credentialUrl: String(body.credentialUrl ?? '')
+          });
+        }
+        return sendJson(res, 200, { profile: db.getProfile() });
+      }
+
+      if (method === 'POST' && pathname === '/api/profile/educations') {
+        const body = await readJsonBody(req);
+        if (body.deleteId) {
+          db.deleteEducation(Number(body.deleteId));
+        } else if (body.course) {
+          db.addEducation({
+            course: String(body.course),
+            institution: String(body.institution ?? ''),
+            degree: String(body.degree ?? 'Graduação'),
+            status: String(body.status ?? 'Concluído'),
+            year: String(body.year ?? '')
+          });
+        }
+        return sendJson(res, 200, { profile: db.getProfile() });
+      }
+
+      if (method === 'POST' && pathname === '/api/profile/projects') {
+        const body = await readJsonBody(req);
+        if (body.deleteId) {
+          db.deletePersonalProject(Number(body.deleteId));
+        } else if (body.name) {
+          const stack = Array.isArray(body.techStack)
+            ? body.techStack.map(String)
+            : String(body.techStack ?? '')
+                .split(',')
+                .map((s) => s.trim())
+                .filter(Boolean);
+          db.addPersonalProject({
+            name: String(body.name),
+            techStack: stack.length ? stack : ['DevOps'],
+            descriptionPt: String(body.descriptionPt ?? ''),
+            descriptionEn: String(body.descriptionEn || body.descriptionPt || ''),
+            url: String(body.url ?? '')
+          });
+        }
+        return sendJson(res, 200, { profile: db.getProfile() });
+      }
+
       if (method === 'POST' && pathname === '/api/profile/evolve') {
         const body = await readJsonBody(req);
-        if (body.skillId) {
+        if (body.deleteSkillId) {
+          db.deleteSkill(Number(body.deleteSkillId));
+        } else if (body.skillId) {
           db.evolveSkill(Number(body.skillId), {
             level: body.level ? (String(body.level) as SkillLevel) : undefined,
             honestFramingPt: body.honestFramingPt ? String(body.honestFramingPt) : undefined,
@@ -187,18 +276,31 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
           db.updateProfileInfo(body.profileInfo as Record<string, string>);
         }
 
-        // Re-score open jobs after seniority/skill evolution
-        const profile = db.getProfile();
-        const weights = db.getPreferenceWeights();
-        for (const j of db.listJobs()) {
-          const analysis = analyzeAndHighlightJob(j, profile, weights);
-          db.upsertJob({ ...j, matchScore: analysis.matchScore });
-        }
-
+        rescoreAllJobs();
         return sendJson(res, 200, {
           profile: db.getProfile(),
           jobs: db.listJobs()
         });
+      }
+
+      if (method === 'POST' && pathname === '/api/settings') {
+        const body = await readJsonBody(req);
+        const settings = db.updateSettings({
+          aiProvider: body.aiProvider ? (String(body.aiProvider) as 'deterministic' | 'openai' | 'gemini' | 'groq' | 'ollama') : undefined,
+          apiKey: body.apiKey !== undefined ? String(body.apiKey) : undefined,
+          modelName: body.modelName !== undefined ? String(body.modelName) : undefined,
+          baseUrl: body.baseUrl !== undefined ? String(body.baseUrl) : undefined,
+          theme: body.theme ? (String(body.theme) as ThemeMode) : undefined
+        });
+        return sendJson(res, 200, { settings });
+      }
+
+      const agentMatch = pathname.match(/^\/api\/agents\/([a-zA-Z0-9._-]+)$/);
+      if (method === 'POST' && agentMatch) {
+        const slug = agentMatch[1];
+        const body = await readJsonBody(req);
+        const agent = db.updateAgentPrompt(slug, String(body.content ?? ''));
+        return sendJson(res, 200, { agent, agentPrompts: db.listAgentPrompts() });
       }
 
       // Serve static files

@@ -1,85 +1,111 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="auto">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CamaleãoATS — Radar DevOps Remoto & Adaptação Honesta de CV</title>
+  <title>CamaleãoATS — Plataforma Inteligente de Vagas & Currículo ATS</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <!-- Top Navigation Bar (Single Screen) -->
+  <!-- Top Navigation Bar (Clean SaaS Header — no hardcoded cert-pill) -->
   <header class="topbar">
     <div class="brand-group">
       <div class="logo">🦎 Camaleão<span>ATS</span></div>
-      <div class="seniority-pill" id="header-seniority-pill" title="Senioridade calculada dinamicamente pelo seu Perfil Vivo">
-        Senioridade: <strong id="header-seniority-text">Júnior Avançado / Pleno</strong>
+
+      <div class="seniority-pill" title="Senioridade calculada a partir do seu Perfil">
+        Seu Perfil: <strong id="header-seniority-text">Júnior Avançado / Pleno</strong>
       </div>
-      <div class="cert-pill">🏅 AWS SAA-C03 • Docker • GitHub Actions • ArgoCD • K8s (YAML)</div>
+
+      <!-- Job Seniority Filter as Dropdown List -->
+      <div class="filter-group">
+        <label for="filter-seniority">Senioridade das Vagas:</label>
+        <select id="filter-seniority" class="select-compact">
+          <option value="all">Todas as Senioridades</option>
+          <option value="estagio">Estágio / Trainee</option>
+          <option value="junior">Júnior</option>
+          <option value="junior_pleno">Júnior / Pleno</option>
+          <option value="pleno">Pleno</option>
+          <option value="senior">Sênior</option>
+          <option value="especialista">Especialista / Staff</option>
+        </select>
+      </div>
     </div>
 
     <div class="actions-group">
-      <button class="btn btn-secondary" id="btn-open-profile">⬆️ Evoluir Senioridade / Perfil Vivo</button>
-      <button class="btn btn-secondary" id="btn-open-ingest">+ Colar Vaga (Link/Texto)</button>
-      <button class="btn btn-primary" id="btn-scrape">🔄 Coletar Vagas Remotas Agora</button>
+      <!-- Theme Switcher: Auto / Claro (Branco) / Escuro (Preto) -->
+      <div class="theme-switcher" role="group" aria-label="Tema de cores">
+        <button type="button" class="theme-btn active" data-theme-val="auto" title="Tema Automático do Sistema">🌓 Auto</button>
+        <button type="button" class="theme-btn" data-theme-val="light" title="Tema Claro (Branco)">☀️ Claro</button>
+        <button type="button" class="theme-btn" data-theme-val="dark" title="Tema Escuro (Preto)">🌙 Escuro</button>
+      </div>
+
+      <button class="btn btn-secondary" id="btn-open-profile">👤 Perfil</button>
+      <button class="btn btn-secondary" id="btn-open-settings">⚙️ Configurações</button>
+      <button class="btn btn-secondary" id="btn-open-ingest">+ Nova Vaga</button>
+      <button class="btn btn-primary" id="btn-scrape">🔄 Buscar Vagas</button>
     </div>
   </header>
 
-  <!-- Status Banner -->
   <div id="toast-banner" class="toast hidden"></div>
 
-  <!-- 4-Column Kanban Board (Main Single Screen) -->
+  <!-- 4-Column Kanban Board with Native Drag and Drop -->
   <main class="kanban-board">
-    <!-- Column 1: Vagas Abertas -->
     <section class="kanban-col" data-status="abertas">
       <div class="kanban-col-header">
-        <span>📥 Vagas Abertas (Para Aplicar)</span>
+        <span>📥 Vagas Abertas</span>
         <span class="count-badge" id="count-abertas">0</span>
       </div>
-      <div class="kanban-cards" id="col-abertas"></div>
+      <div class="kanban-cards" id="col-abertas" data-drop-status="abertas"></div>
     </section>
 
-    <!-- Column 2: Vagas em Processo -->
     <section class="kanban-col" data-status="em_processo">
       <div class="kanban-col-header">
-        <span>⏳ Vagas em Processo (Aplicadas / Recruiter)</span>
+        <span>⏳ Em Processo</span>
         <span class="count-badge" id="count-em_processo">0</span>
       </div>
-      <div class="kanban-cards" id="col-em_processo"></div>
+      <div class="kanban-cards" id="col-em_processo" data-drop-status="em_processo"></div>
     </section>
 
-    <!-- Column 3: Vagas sem Sucesso -->
     <section class="kanban-col" data-status="sem_sucesso">
       <div class="kanban-col-header">
-        <span>❌ Sem Sucesso / Ghosting</span>
+        <span>❌ Sem Sucesso</span>
         <span class="count-badge" id="count-sem_sucesso">0</span>
       </div>
-      <div class="kanban-cards" id="col-sem_sucesso"></div>
+      <div class="kanban-cards" id="col-sem_sucesso" data-drop-status="sem_sucesso"></div>
     </section>
 
-    <!-- Column 4: Vagas Ruins (Taste Learning) -->
     <section class="kanban-col kanban-col-bad" data-status="ruins">
       <div class="kanban-col-header">
-        <span>🗑️ Vagas Ruins (Ensina o Filtro)</span>
+        <span>🗑️ Vagas Ruins (Filtro)</span>
         <span class="count-badge" id="count-ruins">0</span>
       </div>
-      <div class="kanban-cards" id="col-ruins"></div>
+      <div class="kanban-cards" id="col-ruins" data-drop-status="ruins"></div>
     </section>
   </main>
 
-  <!-- POPUP 1: Job Detail Modal (Opens on the SAME page over the Kanban) -->
+  <!-- POPUP 1: Clean, Responsive Job Detail Modal (Same Page Over Kanban) -->
   <div id="job-modal-backdrop" class="modal-backdrop hidden">
-    <div class="modal-window">
+    <div class="modal-window modal-window-xl">
       <div class="modal-header">
-        <div>
+        <div class="modal-header-main">
           <div class="modal-title-row">
             <h2 id="modal-job-title">Título da Vaga</h2>
             <span class="match-badge" id="modal-job-score">92% Match</span>
             <span class="platform-badge" id="modal-job-platform">Gupy</span>
           </div>
           <div class="modal-subtitle">
-            <span id="modal-job-company">Empresa</span> •
+            <strong id="modal-job-company">Empresa</strong> •
             <span id="modal-job-location">100% Remoto</span> •
-            <a id="modal-job-url" href="#" target="_blank" rel="noopener">Abrir link original ↗</a>
+            <label for="modal-job-seniority" class="inline-label">Senioridade:</label>
+            <select id="modal-job-seniority" class="select-inline">
+              <option value="estagio">Estágio / Trainee</option>
+              <option value="junior">Júnior</option>
+              <option value="junior_pleno">Júnior / Pleno</option>
+              <option value="pleno">Pleno</option>
+              <option value="senior">Sênior</option>
+              <option value="especialista">Especialista / Staff</option>
+            </select>
+            • <a id="modal-job-url" href="#" target="_blank" rel="noopener">Abrir vaga original ↗</a>
           </div>
         </div>
 
@@ -88,117 +114,123 @@
             <button type="button" class="lang-btn active" id="btn-lang-pt" data-lang="pt-BR">🇧🇷 PT-BR</button>
             <button type="button" class="lang-btn" id="btn-lang-en" data-lang="en">🇺🇸 EN</button>
           </div>
-          <button type="button" class="btn-close" id="btn-close-job-modal">✕ Fechar</button>
+          <button type="button" class="btn-close" id="btn-close-job-modal">✕</button>
         </div>
       </div>
 
       <div class="modal-body-grid">
-        <!-- Left Column: Full Highlighted Description -->
+        <!-- Left Side: Full Highlighted Job Description -->
         <div class="modal-col-left">
           <div class="legend-bar">
             <span class="legend-item legend-strong">🟢 Ponto Forte no seu CV</span>
-            <span class="legend-item legend-evolving">🟡 Em Evolução / Transferível (Sem Alucinar)</span>
+            <span class="legend-item legend-evolving">🟡 Em Evolução / Transferível</span>
           </div>
           <div id="modal-preference-alerts" class="alerts-box hidden"></div>
           <div class="description-box" id="modal-highlighted-description"></div>
 
-          <!-- Move across Kanban columns + Taste Learning -->
           <div class="kanban-move-bar">
-            <span>Mover card no Kanban:</span>
+            <span>Mover para:</span>
             <button type="button" class="btn btn-sm" data-move="abertas">📥 Abertas</button>
             <button type="button" class="btn btn-sm" data-move="em_processo">⏳ Em Processo</button>
             <button type="button" class="btn btn-sm" data-move="sem_sucesso">❌ Sem Sucesso</button>
-            <button type="button" class="btn btn-sm btn-danger" data-move="ruins">👎 Vaga Ruim (Treinar Filtro)</button>
+            <button type="button" class="btn btn-sm btn-danger" data-move="ruins">👎 Vaga Ruim</button>
           </div>
         </div>
 
-        <!-- Right Column: Honest CV / Gupy Mode / Tech Recruiter LinkedIn Free Tracker -->
+        <!-- Right Side: Focused Tabbed Workspace (One clean section at a time) -->
         <div class="modal-col-right">
-          <!-- Mode Tabs: Gupy vs PDF/Portal vs Tech Recruiter -->
           <div class="subtabs">
-            <button type="button" class="subtab active" data-tab="tab-cv">📄 CV Adaptado (PDF)</button>
-            <button type="button" class="subtab" data-tab="tab-gupy">🟣 Modo Gupy ("Apresente-se")</button>
-            <button type="button" class="subtab" data-tab="tab-recruiter">💬 Tech Recruiter (LinkedIn ≤200c)</button>
+            <button type="button" class="subtab active" data-tab="tab-cv">📄 CV Adaptado</button>
+            <button type="button" class="subtab" data-tab="tab-gupy">🟣 Modo Gupy</button>
+            <button type="button" class="subtab" data-tab="tab-recruiter">💬 Tech Recruiter</button>
           </div>
 
-          <!-- TAB 1: Honest Tailored CV & PDF -->
+          <!-- TAB 1: Honest Tailored CV -->
           <div id="tab-cv" class="tab-panel">
-            <div class="panel-section">
-              <h4>Ajustes Honestos Feitos (Sem Alucinar):</h4>
-              <ul id="modal-cv-adjustments" class="compact-list"></ul>
-            </div>
-            <div class="panel-section">
-              <h4>Resumo Otimizado para o ATS desta Vaga:</h4>
+            <div class="card-block">
+              <div class="card-block-header">
+                <h4>Resumo Profissional Otimizado (ATS)</h4>
+                <button type="button" class="btn btn-xs" data-copy-target="modal-cv-summary">📋 Copiar</button>
+              </div>
               <textarea id="modal-cv-summary" rows="4" readonly></textarea>
-              <button type="button" class="btn btn-xs" data-copy-target="modal-cv-summary">📋 Copiar Resumo</button>
             </div>
-            <div class="panel-section">
-              <h4>Experiências e Skills Reordenadas para a Vaga:</h4>
-              <ul id="modal-cv-bullets" class="compact-list"></ul>
+
+            <div class="card-block">
+              <h4>Ajustes Honestos Aplicados & Projetos Incluídos</h4>
+              <ul id="modal-cv-adjustments" class="clean-list"></ul>
+            </div>
+
+            <div class="card-block">
+              <h4>Competências & Experiências Reordenadas</h4>
+              <ul id="modal-cv-bullets" class="clean-list"></ul>
             </div>
           </div>
 
-          <!-- TAB 2: Gupy Mode ("Apresente-se" + Pre-registered Profile Adjustments) -->
+          <!-- TAB 2: Gupy Mode ("Apresente-se" + Pre-registered Profile) -->
           <div id="tab-gupy" class="tab-panel hidden">
             <div class="gupy-banner">
-              <strong>🟣 Modo Gupy (Gaia ATS):</strong> Na Gupy você não sobe PDF por vaga. Copie o texto <em>"Apresente-se"</em> abaixo e atualize seu resumo/skills pré-cadastrados na Gupy com as palavras-chave desta vaga.
+              <strong>🟣 Modo Gupy (Gaia ATS):</strong> Na Gupy você altera o currículo pré-cadastrado e preenche o campo <em>"Apresente-se"</em>.
             </div>
-            <div class="panel-section">
-              <h4>1. Texto Pronto para o "Apresente-se" da Gupy:</h4>
+            <div class="card-block">
+              <div class="card-block-header">
+                <h4>1. Texto Pronto para o "Apresente-se" da Gupy</h4>
+                <button type="button" class="btn btn-xs btn-primary" data-copy-target="modal-gupy-apresentese">📋 Copiar "Apresente-se"</button>
+              </div>
               <textarea id="modal-gupy-apresentese" rows="6" readonly></textarea>
-              <button type="button" class="btn btn-xs btn-primary" data-copy-target="modal-gupy-apresentese">📋 Copiar "Apresente-se"</button>
             </div>
-            <div class="panel-section">
-              <h4>2. Resumo para Atualizar no seu CV Pré-Cadastrado na Gupy:</h4>
+            <div class="card-block">
+              <div class="card-block-header">
+                <h4>2. Resumo para o seu Perfil Pré-Cadastrado na Gupy</h4>
+                <button type="button" class="btn btn-xs" data-copy-target="modal-gupy-summary">📋 Copiar Resumo</button>
+              </div>
               <textarea id="modal-gupy-summary" rows="3" readonly></textarea>
-              <button type="button" class="btn btn-xs" data-copy-target="modal-gupy-summary">📋 Copiar Resumo p/ Perfil Gupy</button>
             </div>
-            <div class="panel-section">
-              <h4>3. Tags de Habilidades para Garantir no Perfil Gupy:</h4>
+            <div class="card-block">
+              <h4>3. Tags de Habilidades para o Perfil Gupy</h4>
               <div id="modal-gupy-tags" class="tags-wrap"></div>
             </div>
           </div>
 
-          <!-- TAB 3: Tech Recruiter Tracker (LinkedIn Free <= 200 chars + Post-Accept DM) -->
+          <!-- TAB 3: Tech Recruiter Tracker (LinkedIn Free <= 200 chars) -->
           <div id="tab-recruiter" class="tab-panel hidden">
-            <div class="panel-section recruiter-box">
-              <div class="recruiter-row">
+            <div class="card-block">
+              <h4>Rastreador de Conexão no LinkedIn</h4>
+              <div class="form-row-2">
                 <input type="text" id="input-recruiter-name" placeholder="Nome do Tech Recruiter / RH" />
-                <a id="btn-find-recruiter-linkedin" href="#" target="_blank" rel="noopener" class="btn btn-xs btn-secondary">🔍 Buscar Recruiter no LinkedIn</a>
+                <a id="btn-find-recruiter-linkedin" href="#" target="_blank" rel="noopener" class="btn btn-sm btn-secondary">🔍 Buscar no LinkedIn</a>
               </div>
-              <div class="recruiter-row">
-                <label for="select-recruiter-status">Status da Conexão (aparece no Kanban):</label>
+              <div class="form-row-2" style="margin-top:8px;">
                 <select id="select-recruiter-status">
-                  <option value="nao_enviado">⚪ Ainda não enviei conexão</option>
-                  <option value="aguardando_aceite">⏳ Conexão Enviada (Aguardando Aceite p/ mandar DM!)</option>
-                  <option value="dm_enviada">✅ Conexão Aceita & DM Completa Enviada</option>
+                  <option value="nao_enviado">⚪ Conexão ainda não enviada</option>
+                  <option value="aguardando_aceite">⏳ Conexão Enviada (Aguardando Aceite p/ mandar DM)</option>
+                  <option value="dm_enviada">✅ Conexão Aceita & DM Enviada</option>
                 </select>
-                <button type="button" class="btn btn-xs btn-primary" id="btn-save-recruiter">Salvar Status</button>
+                <button type="button" class="btn btn-sm btn-primary" id="btn-save-recruiter">Salvar Status</button>
               </div>
             </div>
 
-            <div class="panel-section">
-              <div class="label-with-counter">
-                <h4>Nota de Convite LinkedIn Free (Máx. 200 caracteres):</h4>
-                <span id="modal-invite-counter" class="char-counter">0/200</span>
+            <div class="card-block">
+              <div class="card-block-header">
+                <h4>Nota de Convite LinkedIn Free (<span id="modal-invite-counter" class="char-counter">0/200</span>)</h4>
+                <button type="button" class="btn btn-xs" data-copy-target="modal-recruiter-invite">📋 Copiar Nota (≤200c)</button>
               </div>
               <textarea id="modal-recruiter-invite" rows="2" readonly></textarea>
-              <button type="button" class="btn btn-xs" data-copy-target="modal-recruiter-invite">📋 Copiar Nota (≤200c)</button>
             </div>
 
-            <div class="panel-section">
-              <h4>DM Completa (Enviar assim que aceitar a conexão / ou E-mail):</h4>
+            <div class="card-block">
+              <div class="card-block-header">
+                <h4>DM Completa Pós-Aceite / E-mail Direto</h4>
+                <button type="button" class="btn btn-xs btn-primary" data-copy-target="modal-recruiter-dm">📋 Copiar DM Completa</button>
+              </div>
               <textarea id="modal-recruiter-dm" rows="5" readonly></textarea>
-              <button type="button" class="btn btn-xs btn-primary" data-copy-target="modal-recruiter-dm">📋 Copiar DM Pós-Aceite</button>
             </div>
           </div>
 
-          <!-- Primary Action Footer inside Popup -->
           <div class="modal-action-footer">
             <button type="button" class="btn btn-primary btn-lg" id="btn-auto-apply">
-              ⚡ Aplicar Automaticamente (Robô + Mover p/ Em Processo)
+              ⚡ Aplicar Automaticamente
             </button>
-            <a id="btn-download-pdf" href="#" class="btn btn-secondary">📄 Baixar CV (PDF ATS)</a>
+            <a id="btn-download-pdf" href="#" class="btn btn-secondary btn-lg">📄 Baixar PDF ATS</a>
           </div>
           <div id="modal-apply-log" class="apply-log hidden"></div>
         </div>
@@ -206,61 +238,282 @@
     </div>
   </div>
 
-  <!-- POPUP 2: Living Profile & Seniority Evolution Modal -->
+  <!-- POPUP 2: Modal "👤 Perfil" (With CV Extractor + 5 Dedicated Tabs) -->
   <div id="profile-modal-backdrop" class="modal-backdrop hidden">
-    <div class="modal-window modal-window-md">
+    <div class="modal-window modal-window-lg">
       <div class="modal-header">
         <div>
-          <h2>⬆️ Evolução de Senioridade & Perfil Vivo ("Camaleão")</h2>
-          <p class="modal-subtitle">Conforme você aprende coisas novas ou avança no homelab, suba o nível abaixo. O sistema ajusta sua senioridade e reescreve seus próximos CVs automaticamente.</p>
+          <h2>👤 Perfil Profissional</h2>
+          <p class="modal-subtitle">Gerencie seus dados, extraia informações do seu currículo atual e organize Habilidades, Certificações, Graduações e Projetos Pessoais separadamente.</p>
         </div>
-        <button type="button" class="btn-close" id="btn-close-profile-modal">✕ Fechar</button>
+        <button type="button" class="btn-close" id="btn-close-profile-modal">✕</button>
       </div>
 
-      <div class="profile-modal-body">
-        <div class="profile-info-grid">
-          <input type="text" id="prof-name" placeholder="Seu Nome Completo" />
-          <input type="text" id="prof-email" placeholder="Seu E-mail" />
-          <input type="text" id="prof-phone" placeholder="Seu Telefone / WhatsApp" />
-          <input type="text" id="prof-linkedin" placeholder="URL do seu LinkedIn" />
-          <button type="button" class="btn btn-secondary" id="btn-save-profile-info">💾 Salvar Dados Pessoais</button>
+      <div class="modal-content-padded">
+        <!-- CV Extractor Banner -->
+        <div class="extractor-banner">
+          <div class="extractor-info">
+            <strong>📄 Extrair Automaticamente do seu CV Atual</strong>
+            <span>Suba um arquivo (<code>.txt</code>, <code>.md</code>, <code>.pdf</code>) ou cole o texto do seu currículo para preencher seu perfil.</span>
+          </div>
+          <div class="extractor-actions">
+            <label class="btn btn-sm btn-secondary" for="input-cv-file">📂 Escolher Arquivo</label>
+            <input type="file" id="input-cv-file" accept=".txt,.md,.pdf,.json" class="hidden" />
+            <button type="button" class="btn btn-sm btn-primary" id="btn-toggle-cv-paste">📋 Colar Texto / Extrair</button>
+          </div>
         </div>
 
-        <h3>Suas Habilidades Atuais & Nível Real (Sem Alucinar)</h3>
-        <div id="skills-evolution-list" class="skills-list"></div>
-
-        <div class="add-skill-box">
-          <h4>+ Adicionar Nova Habilidade / Certificação / Projeto Aprendido</h4>
-          <div class="add-skill-row">
-            <input type="text" id="new-skill-name" placeholder="Ex: Helm, Prometheus, CKA, GCP..." />
-            <select id="new-skill-level">
-              <option value="evolving">🟡 Em Evolução (Inicial / Prático)</option>
-              <option value="practical">🟢 Prático / Autônomo</option>
-              <option value="solid">🔥 Sólido / Pleno+</option>
-            </select>
+        <div id="cv-paste-drawer" class="card-block hidden" style="margin-bottom: 14px;">
+          <h4>Cole abaixo o conteúdo do seu CV atual:</h4>
+          <textarea id="textarea-cv-extract" rows="5" placeholder="Cole aqui todo o texto do seu currículo atual (dados, certificações, faculdade, skills, projetos)..."></textarea>
+          <div style="display:flex; justify-content:flex-end; margin-top: 8px;">
+            <button type="button" class="btn btn-sm btn-primary" id="btn-run-cv-extract">✨ Extrair e Preencher Perfil</button>
           </div>
-          <input type="text" id="new-skill-pt" placeholder="Como posicionar em PT-BR no CV (Ex: Criação de charts Helm e monitoramento com Prometheus)" />
-          <input type="text" id="new-skill-en" placeholder="Como posicionar em EN no CV (Ex: Authoring Helm charts and Prometheus monitoring)" />
-          <button type="button" class="btn btn-primary" id="btn-add-skill">+ Adicionar e Recalcular Senioridade</button>
+        </div>
+
+        <!-- 5 Dedicated Profile Tabs -->
+        <div class="subtabs profile-tabs">
+          <button type="button" class="subtab profile-tab active" data-ptab="ptab-dados">1. Dados Pessoais</button>
+          <button type="button" class="subtab profile-tab" data-ptab="ptab-skills">2. Habilidades & Tecnologias</button>
+          <button type="button" class="subtab profile-tab" data-ptab="ptab-certs">3. Certificações</button>
+          <button type="button" class="subtab profile-tab" data-ptab="ptab-edu">4. Ensino / Graduações</button>
+          <button type="button" class="subtab profile-tab" data-ptab="ptab-projects">5. Projetos Pessoais</button>
+        </div>
+
+        <!-- Profile Tab 1: Personal Data -->
+        <div id="ptab-dados" class="ptab-panel">
+          <div class="form-grid-2">
+            <div>
+              <label>Nome Completo</label>
+              <input type="text" id="prof-name" placeholder="Seu Nome Completo" />
+            </div>
+            <div>
+              <label>E-mail</label>
+              <input type="text" id="prof-email" placeholder="seu.email@exemplo.com" />
+            </div>
+            <div>
+              <label>Telefone / WhatsApp</label>
+              <input type="text" id="prof-phone" placeholder="+55 (11) 99999-9999" />
+            </div>
+            <div>
+              <label>Localização / Modalidade</label>
+              <input type="text" id="prof-location" placeholder="Brasil (100% Remoto)" />
+            </div>
+            <div>
+              <label>URL do LinkedIn</label>
+              <input type="text" id="prof-linkedin" placeholder="https://linkedin.com/in/seu-perfil" />
+            </div>
+            <div>
+              <label>URL do GitHub / Portfólio</label>
+              <input type="text" id="prof-github" placeholder="https://github.com/seu-usuario" />
+            </div>
+            <div>
+              <label>Título Profissional (PT-BR)</label>
+              <input type="text" id="prof-title-pt" placeholder="DevOps Engineer | Cloud & Containers" />
+            </div>
+            <div>
+              <label>Título Profissional (EN)</label>
+              <input type="text" id="prof-title-en" placeholder="DevOps Engineer | Cloud & Containers" />
+            </div>
+          </div>
+          <div style="margin-top: 12px;">
+            <button type="button" class="btn btn-primary" id="btn-save-profile-info">💾 Salvar Dados Pessoais</button>
+          </div>
+        </div>
+
+        <!-- Profile Tab 2: Skills & Software (WITH Seniority / Familiarity Level) -->
+        <div id="ptab-skills" class="ptab-panel hidden">
+          <p class="section-hint">Aqui ficam suas ferramentas, linguagens e tecnologias com o respectivo <strong>nível de familiaridade/senioridade</strong>.</p>
+          <div id="skills-evolution-list" class="skills-list"></div>
+
+          <div class="add-item-card">
+            <h4>+ Adicionar Habilidade / Tecnologia</h4>
+            <div class="form-grid-3">
+              <input type="text" id="new-skill-name" placeholder="Tecnologia (Ex: Docker, Kubernetes, Helm...)" />
+              <input type="text" id="new-skill-cat" placeholder="Categoria (Ex: Cloud, CI/CD, IaC)" />
+              <select id="new-skill-level">
+                <option value="evolving">🟡 Iniciante / Em Evolução</option>
+                <option value="practical">🟢 Prático / Autônomo</option>
+                <option value="solid">🔥 Sólido / Avançado</option>
+              </select>
+            </div>
+            <div class="form-grid-2" style="margin-top: 8px;">
+              <input type="text" id="new-skill-pt" placeholder="Como descrever em PT-BR no CV (sem alucinar)" />
+              <input type="text" id="new-skill-en" placeholder="Como descrever em Inglês no CV" />
+            </div>
+            <button type="button" class="btn btn-primary btn-sm" id="btn-add-skill" style="margin-top: 8px;">+ Adicionar Habilidade</button>
+          </div>
+        </div>
+
+        <!-- Profile Tab 3: Certifications (NO Seniority Level!) -->
+        <div id="ptab-certs" class="ptab-panel hidden">
+          <p class="section-hint">Certificações oficiais não possuem nível de senioridade — informe apenas o Nome, a Organização Emissora e o Ano/Status.</p>
+          <div id="certs-list" class="items-list"></div>
+
+          <div class="add-item-card">
+            <h4>+ Adicionar Certificação</h4>
+            <div class="form-grid-3">
+              <input type="text" id="new-cert-name" placeholder="Nome (Ex: AWS Certified Solutions Architect - SAA-C03)" />
+              <input type="text" id="new-cert-issuer" placeholder="Emissor (Ex: AWS, CNCF, HashiCorp)" />
+              <input type="text" id="new-cert-year" placeholder="Ano / Validade (Ex: 2025)" />
+            </div>
+            <button type="button" class="btn btn-primary btn-sm" id="btn-add-cert" style="margin-top: 8px;">+ Adicionar Certificação</button>
+          </div>
+        </div>
+
+        <!-- Profile Tab 4: Education / Degrees (Faculdade, Pós, Técnico) -->
+        <div id="ptab-edu" class="ptab-panel hidden">
+          <p class="section-hint">Cadastre suas graduações, pós-graduações, MBA ou cursos técnicos.</p>
+          <div id="edu-list" class="items-list"></div>
+
+          <div class="add-item-card">
+            <h4>+ Adicionar Formação / Graduação</h4>
+            <div class="form-grid-2">
+              <input type="text" id="new-edu-course" placeholder="Curso (Ex: Análise e Desenvolvimento de Sistemas, Redes...)" />
+              <input type="text" id="new-edu-inst" placeholder="Instituição / Faculdade (Ex: FIAP, USP, PUC...)" />
+            </div>
+            <div class="form-grid-3" style="margin-top: 8px;">
+              <select id="new-edu-degree">
+                <option value="Tecnólogo">Tecnólogo (Graduação)</option>
+                <option value="Bacharelado">Bacharelado (Graduação)</option>
+                <option value="Pós-Graduação / MBA">Pós-Graduação / Especialização / MBA</option>
+                <option value="Mestrado / Doutorado">Mestrado / Doutorado</option>
+                <option value="Ensino Técnico">Ensino Técnico</option>
+              </select>
+              <select id="new-edu-status">
+                <option value="Concluído">Concluído</option>
+                <option value="Cursando">Cursando</option>
+                <option value="Trancado">Incompleto / Trancado</option>
+              </select>
+              <input type="text" id="new-edu-year" placeholder="Ano de Conclusão / Previsão (Ex: 2025)" />
+            </div>
+            <button type="button" class="btn btn-primary btn-sm" id="btn-add-edu" style="margin-top: 8px;">+ Adicionar Formação</button>
+          </div>
+        </div>
+
+        <!-- Profile Tab 5: Personal Projects (Included conditionally per job) -->
+        <div id="ptab-projects" class="ptab-panel hidden">
+          <p class="section-hint">Projetos pessoais e de homelab são <strong>incluídos automaticamente no seu CV apenas quando as tecnologias do projeto baterem com o que a vaga pede</strong>.</p>
+          <div id="projects-list" class="items-list"></div>
+
+          <div class="add-item-card">
+            <h4>+ Adicionar Projeto Pessoal / Homelab</h4>
+            <div class="form-grid-2">
+              <input type="text" id="new-proj-name" placeholder="Nome do Projeto (Ex: Cluster Kubernetes GitOps com ArgoCD)" />
+              <input type="text" id="new-proj-stack" placeholder="Tecnologias separadas por vírgula (Ex: Kubernetes, ArgoCD, Docker, Terraform)" />
+            </div>
+            <div class="form-grid-2" style="margin-top: 8px;">
+              <input type="text" id="new-proj-pt" placeholder="Descrição técnica em PT-BR para o CV" />
+              <input type="text" id="new-proj-en" placeholder="Descrição técnica em Inglês para o CV" />
+            </div>
+            <button type="button" class="btn btn-primary btn-sm" id="btn-add-proj" style="margin-top: 8px;">+ Adicionar Projeto Pessoal</button>
+          </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- POPUP 3: Ingest Job Modal (Paste URL or Description) -->
-  <div id="ingest-modal-backdrop" class="modal-backdrop hidden">
-    <div class="modal-window modal-window-sm">
+  <!-- POPUP 3: Modal "⚙️ Configurações" (API Keys + Editable Agent .MD Prompts) -->
+  <div id="settings-modal-backdrop" class="modal-backdrop hidden">
+    <div class="modal-window modal-window-lg">
       <div class="modal-header">
-        <h2>+ Analisar e Adicionar Vaga ao Kanban</h2>
-        <button type="button" class="btn-close" id="btn-close-ingest-modal">✕ Fechar</button>
+        <div>
+          <h2>⚙️ Configurações do Sistema & Agentes (.MD)</h2>
+          <p class="modal-subtitle">Configure seu provedor de IA, chave de API e edite os arquivos Markdown (<code>.md</code>) que governam cada agente.</p>
+        </div>
+        <button type="button" class="btn-close" id="btn-close-settings-modal">✕</button>
       </div>
-      <div class="ingest-form">
-        <input type="text" id="ingest-title" placeholder="Título da Vaga (Ex: DevOps Engineer Remoto)" />
-        <input type="text" id="ingest-company" placeholder="Empresa (Ex: Serasa Experian, Consultoria...)" />
-        <input type="text" id="ingest-url" placeholder="Link da Vaga (Gupy, InHire, LinkedIn ou mailto:...)" />
-        <input type="text" id="ingest-recruiter" placeholder="Nome do Tech Recruiter (opcional)" />
-        <textarea id="ingest-text" rows="7" placeholder="Cole aqui a descrição completa da vaga (em Português ou Inglês) para o sistema grifar seus pontos fortes e adaptar o CV..."></textarea>
-        <button type="button" class="btn btn-primary" id="btn-submit-ingest">🔍 Calcular Match e Adicionar em Vagas Abertas</button>
+
+      <div class="modal-content-padded">
+        <div class="card-block" style="margin-bottom: 16px;">
+          <h4>🔑 Provedor de Inteligência Artificial & API Key</h4>
+          <div class="form-grid-2" style="margin-top: 8px;">
+            <div>
+              <label>Provedor de IA</label>
+              <select id="set-ai-provider">
+                <option value="deterministic">Motor Determinístico Local (Sem Custo / Instantâneo)</option>
+                <option value="openai">OpenAI (GPT-4o / GPT-4o-mini)</option>
+                <option value="gemini">Google Gemini (Gemini 2.5 Flash / Pro)</option>
+                <option value="groq">Groq Cloud (Llama 3.3 70B)</option>
+                <option value="ollama">Ollama Local (Homelab / Self-Hosted)</option>
+              </select>
+            </div>
+            <div>
+              <label>Modelo</label>
+              <input type="text" id="set-model-name" placeholder="Ex: gpt-4o-mini, gemini-2.5-flash, llama3.3..." />
+            </div>
+            <div>
+              <label>Chave de API (API Key)</label>
+              <input type="password" id="set-api-key" placeholder="sk-... / AIza... / gsk_..." />
+            </div>
+            <div>
+              <label>URL Base (Opcional — para Ollama ou Proxy)</label>
+              <input type="text" id="set-base-url" placeholder="Ex: http://localhost:11434/v1" />
+            </div>
+          </div>
+          <div style="margin-top: 10px;">
+            <button type="button" class="btn btn-primary btn-sm" id="btn-save-settings">💾 Salvar Configurações de API</button>
+          </div>
+        </div>
+
+        <div class="card-block">
+          <h4>📄 Prompts Markdown (.MD) dos Agentes</h4>
+          <p class="section-hint">Selecione um arquivo <code>.md</code> abaixo para editar as instruções e regras que o agente segue:</p>
+          <div id="agent-tabs-bar" class="subtabs" style="margin-top: 8px;"></div>
+          <div id="agent-description-label" class="section-hint" style="margin-bottom: 6px;"></div>
+          <textarea id="agent-md-editor" rows="10" style="font-family: monospace;"></textarea>
+          <div style="display:flex; justify-content:flex-end; margin-top: 8px;">
+            <button type="button" class="btn btn-primary btn-sm" id="btn-save-agent-md">💾 Salvar Arquivo .MD do Agente</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- POPUP 4: Ingest Job Modal -->
+  <div id="ingest-modal-backdrop" class="modal-backdrop hidden">
+    <div class="modal-window modal-window-md">
+      <div class="modal-header">
+        <h2>+ Adicionar Nova Vaga ao Kanban</h2>
+        <button type="button" class="btn-close" id="btn-close-ingest-modal">✕</button>
+      </div>
+      <div class="modal-content-padded">
+        <div class="form-grid-2">
+          <div>
+            <label>Título da Vaga</label>
+            <input type="text" id="ingest-title" placeholder="Ex: DevOps Engineer Remoto" />
+          </div>
+          <div>
+            <label>Empresa</label>
+            <input type="text" id="ingest-company" placeholder="Ex: Serasa Experian, Consultoria..." />
+          </div>
+          <div>
+            <label>Link da Vaga (Gupy, InHire, LinkedIn...)</label>
+            <input type="text" id="ingest-url" placeholder="https://..." />
+          </div>
+          <div>
+            <label>Senioridade da Vaga</label>
+            <select id="ingest-seniority">
+              <option value="junior_pleno">Júnior / Pleno</option>
+              <option value="estagio">Estágio / Trainee</option>
+              <option value="junior">Júnior</option>
+              <option value="pleno">Pleno</option>
+              <option value="senior">Sênior</option>
+              <option value="especialista">Especialista / Staff</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-top: 8px;">
+          <label>Nome do Tech Recruiter (Opcional)</label>
+          <input type="text" id="ingest-recruiter" placeholder="Ex: Mariana Silva" />
+        </div>
+        <div style="margin-top: 8px;">
+          <label>Descrição Completa da Vaga (Português ou Inglês)</label>
+          <textarea id="ingest-text" rows="6" placeholder="Cole aqui a descrição completa da vaga para destacar os pontos fortes do seu perfil..."></textarea>
+        </div>
+        <div style="margin-top: 12px; display:flex; justify-content:flex-end;">
+          <button type="button" class="btn btn-primary" id="btn-submit-ingest">🔍 Calcular Match e Adicionar Vaga</button>
+        </div>
       </div>
     </div>
   </div>

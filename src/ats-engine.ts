@@ -199,6 +199,11 @@ export function generateHonestTailoredCv(
     framing: targetLang === 'en' ? skill.honestFramingEn : skill.honestFramingPt
   }));
 
+  // Select personal projects only when their techStack overlaps with the job description
+  const relevantProjects = (profile.personalProjects || []).filter((proj) =>
+    proj.techStack.some((tech) => descLower.includes(tech.toLowerCase()))
+  );
+
   const asksOtherCloud = /\b(gcp|google cloud|azure|oci|oracle cloud)\b/i.test(descLower);
   const asksOtherCiCd = /\b(gitlab|jenkins|azure devops|bitbucket pipelines|circleci)\b/i.test(descLower);
 
@@ -253,6 +258,8 @@ export function generateHonestTailoredCv(
       targetRoleTitle: `${job.title} — ${profile.titleEn}`,
       summary,
       certifications: profile.certifications,
+      educations: profile.educations || [],
+      relevantProjects,
       highlights: orderedSkills.slice(0, 5).map((s) => `${s.name}: ${s.framing}`),
       experienceBullets,
       orderedSkills,
@@ -314,6 +321,8 @@ export function generateHonestTailoredCv(
     targetRoleTitle: `${job.title} — ${profile.titlePt}`,
     summary: summaryPt,
     certifications: profile.certifications,
+    educations: profile.educations || [],
+    relevantProjects,
     highlights: orderedSkills.slice(0, 5).map((s) => `${s.name}: ${s.framing}`),
     experienceBullets,
     orderedSkills,
@@ -399,3 +408,140 @@ export function generateRecruiterMessages(
     linkedinSearchUrl
   };
 }
+
+export function extractProfileFromCvText(
+  rawText: string,
+  db: {
+    updateProfileInfo: (info: Record<string, unknown>) => Profile;
+    addCertification: (cert: { name: string; issuer?: string; year?: string }) => Profile;
+    addEducation: (edu: { course: string; institution: string; degree: string; status?: string; year?: string }) => Profile;
+    addPersonalProject: (proj: { name: string; techStack: string[]; descriptionPt: string; descriptionEn?: string }) => Profile;
+    upsertSkill: (skill: { name: string; category: string; level: 'evolving' | 'practical' | 'solid'; keywords: string[]; honestFramingPt: string; honestFramingEn: string }) => Profile;
+    getProfile: () => Profile;
+  }
+): Profile {
+  const lines = rawText
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const infoPatch: Record<string, string> = {};
+
+  // 1. Name from first non-header line
+  if (lines.length > 0 && lines[0].length <= 65 && !lines[0].includes('@')) {
+    infoPatch.name = lines[0].replace(/^#+\s*/, '').trim();
+  }
+
+  // 2. Email, Phone, LinkedIn, GitHub
+  const emailMatch = rawText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+  if (emailMatch) infoPatch.email = emailMatch[0];
+
+  const phoneMatch = rawText.match(/(\+?\d{1,3}[\s-]?)?\(?\d{2}\)?[\s-]?\d{4,5}[\s-]?\d{4}/);
+  if (phoneMatch) infoPatch.phone = phoneMatch[0].trim();
+
+  const linkedinMatch = rawText.match(/https?:\/\/(www\.)?linkedin\.com\/in\/[^\s|,)"]+/i);
+  if (linkedinMatch) infoPatch.linkedin = linkedinMatch[0];
+
+  const githubMatch = rawText.match(/https?:\/\/(www\.)?github\.com\/[^\s|,)"]+/i);
+  if (githubMatch) infoPatch.github = githubMatch[0];
+
+  if (Object.keys(infoPatch).length > 0) {
+    db.updateProfileInfo(infoPatch);
+  }
+
+  // 3. Extract Certifications (without seniority level)
+  const knownCerts = [
+    { rx: /AWS.*Solutions Architect.*Associate|SAA-C03/i, name: 'AWS Certified Solutions Architect - Associate (SAA-C03)', issuer: 'AWS' },
+    { rx: /AWS.*Cloud Practitioner|CLF-C0[12]/i, name: 'AWS Certified Cloud Practitioner', issuer: 'AWS' },
+    { rx: /Terraform Associate/i, name: 'HashiCorp Certified: Terraform Associate', issuer: 'HashiCorp' },
+    { rx: /\bCKA\b|Certified Kubernetes Administrator/i, name: 'Certified Kubernetes Administrator (CKA)', issuer: 'CNCF' },
+    { rx: /\bCKAD\b|Certified Kubernetes Application Developer/i, name: 'Certified Kubernetes Application Developer (CKAD)', issuer: 'CNCF' },
+    { rx: /AZ-104|Azure Administrator/i, name: 'Microsoft Certified: Azure Administrator Associate (AZ-104)', issuer: 'Microsoft' },
+    { rx: /AZ-900|Azure Fundamentals/i, name: 'Microsoft Certified: Azure Fundamentals (AZ-900)', issuer: 'Microsoft' }
+  ];
+
+  for (const kc of knownCerts) {
+    if (kc.rx.test(rawText)) {
+      db.addCertification({ name: kc.name, issuer: kc.issuer, year: 'Ativa' });
+    }
+  }
+
+  // 4. Extract Educations / Graduations
+  for (const line of lines) {
+    if (/\b(bacharelado|tecn[óo]logo|licenciatura|gradua[çc][ãa]o|p[óo]s-gradua[çc][ãa]o|mba|mestrado|engenharia|ci[êe]ncia da computa[çc][ãa]o|sistemas de informa[çc][ãa]o|an[áa]lise e desenvolvimento)\b/i.test(line)) {
+      const cleaned = line.replace(/^(forma[çc][ãa]o|educa[çc][ãa]o|ensino)\s*:\s*/i, '').trim();
+      const parts = cleaned.split(/\s+[-–—|]\s+/);
+      const course = parts[0] || cleaned;
+      const institution = parts[1]?.replace(/\(\d{4}\)/, '').trim() || 'Instituição de Ensino';
+      const yearMatch = line.match(/\b(20\d{2}|19\d{2})\b/);
+      const degree = /p[óo]s|mba/i.test(line)
+        ? 'Pós-Graduação / MBA'
+        : /tecn[óo]logo/i.test(line)
+        ? 'Tecnólogo'
+        : 'Bacharelado / Graduação';
+      db.addEducation({
+        course,
+        institution,
+        degree,
+        status: /cursando|andamento/i.test(line) ? 'Cursando' : 'Concluído',
+        year: yearMatch ? yearMatch[1] : ''
+      });
+    }
+  }
+
+  // 5. Extract Personal Projects
+  for (const line of lines) {
+    if (/^(projeto|project|homelab)/i.test(line) || /projeto pessoal\s*:/i.test(line)) {
+      const cleaned = line.replace(/^[^:]+:\s*/, '').trim();
+      const stackCandidates = ['Docker', 'Kubernetes', 'ArgoCD', 'AWS', 'Terraform', 'Ansible', 'Grafana', 'Prometheus', 'GitHub Actions', 'Linux', 'Kind'];
+      const detectedStack = stackCandidates.filter((t) => new RegExp(t, 'i').test(cleaned));
+      db.addPersonalProject({
+        name: cleaned.slice(0, 60),
+        techStack: detectedStack.length ? detectedStack : ['DevOps', 'Cloud'],
+        descriptionPt: cleaned,
+        descriptionEn: cleaned
+      });
+    }
+  }
+
+  // 6. Extract additional Skills if mentioned in CV
+  const extraSkillsCatalog: Array<{ name: string; category: string; kw: string[]; pt: string; en: string }> = [
+    {
+      name: 'Prometheus',
+      category: 'Observabilidade',
+      kw: ['prometheus', 'promql', 'alertmanager'],
+      pt: 'Coleta de métricas e monitoramento de ambientes e containers utilizando Prometheus.',
+      en: 'Metrics collection and container monitoring using Prometheus.'
+    },
+    {
+      name: 'Linux',
+      category: 'Sistemas',
+      kw: ['linux', 'ubuntu', 'debian', 'rhel', 'bash', 'shell script'],
+      pt: 'Administração de ambientes Linux, automação via Shell Script/Bash e troubleshooting de rede e processos.',
+      en: 'Linux administration, Bash/Shell scripting automation, and network/process troubleshooting.'
+    },
+    {
+      name: 'Helm',
+      category: 'Orquestração',
+      kw: ['helm', 'helm charts'],
+      pt: 'Empacotamento e parametrização de aplicações em Kubernetes utilizando Helm Charts.',
+      en: 'Packaging and templating Kubernetes applications using Helm Charts.'
+    }
+  ];
+
+  for (const item of extraSkillsCatalog) {
+    if (item.kw.some((k) => new RegExp(`\\b${k}\\b`, 'i').test(rawText))) {
+      db.upsertSkill({
+        name: item.name,
+        category: item.category,
+        level: 'practical',
+        keywords: item.kw,
+        honestFramingPt: item.pt,
+        honestFramingEn: item.en
+      });
+    }
+  }
+
+  return db.getProfile();
+}
+
