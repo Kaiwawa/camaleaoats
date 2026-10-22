@@ -50,35 +50,43 @@ export function buildSearchQueryFromProfile(
   profile: Profile,
   seniorityFilter: string = 'all',
   workMode: WorkModeFilter = 'remoto_br'
-): { keywords: string; location: string; remoteFilter: string } {
+): { keywords: string; location: string; remoteFilter: string; roleTitle: string } {
+  // Extract the primary professional title from profile.titlePt (e.g. "DevOps Engineer" from "DevOps Engineer | Cloud AWS...")
+  const rawTitle = (profile.titlePt || 'DevOps Engineer')
+    .split(/[|•–—/]/)[0]
+    .replace(/\s*\(.*?\)/g, '')
+    .trim();
+  const roleTitle = rawTitle || 'DevOps Engineer';
+
   const topSkills = profile.skills
     .filter((s) => s.level === 'solid' || s.level === 'practical')
-    .slice(0, 3)
+    .slice(0, 2)
     .map((s) => s.name.replace(/\s*\(.*?\)/g, '').split('&')[0].trim());
 
   const seniorityMap: Record<string, string> = {
+    all: '',
     estagio: 'Estágio',
     junior: 'Junior',
-    junior_pleno: '',
+    junior_pleno: 'Junior Pleno',
     pleno: 'Pleno',
     senior: 'Senior',
-    especialista: 'Staff'
+    especialista: 'Especialista'
   };
 
-  const senKeyword = seniorityMap[seniorityFilter] || '';
-  const skillString = topSkills.length > 0 ? topSkills.slice(0, 2).join(' ') : 'AWS Docker';
-  const keywords = ['DevOps', senKeyword, skillString].filter(Boolean).join(' ').trim();
+  const senKeyword = seniorityMap[seniorityFilter] ?? '';
+  const skillString = topSkills.length > 0 ? topSkills.join(' ') : 'AWS Docker';
+  const keywords = [roleTitle, senKeyword, skillString].filter(Boolean).join(' ').trim();
 
   if (workMode === 'remoto_global') {
-    return { keywords: `DevOps ${skillString}`, location: 'Worldwide', remoteFilter: '2' };
+    return { keywords: [roleTitle, senKeyword, skillString].filter(Boolean).join(' ').trim(), location: 'Worldwide', remoteFilter: '2', roleTitle };
   }
   if (workMode === 'hibrido_br' || workMode === 'hibrido_sp') {
-    return { keywords, location: 'Brazil', remoteFilter: '3' };
+    return { keywords, location: 'Brazil', remoteFilter: '3', roleTitle };
   }
   if (workMode === 'presencial_br') {
-    return { keywords, location: 'Brazil', remoteFilter: '1' };
+    return { keywords, location: 'Brazil', remoteFilter: '1', roleTitle };
   }
-  return { keywords, location: 'Brazil', remoteFilter: '2' };
+  return { keywords, location: 'Brazil', remoteFilter: '2', roleTitle };
 }
 
 export function parseLinkedInGuestSearchHtml(html: string): Array<{

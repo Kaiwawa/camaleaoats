@@ -63,19 +63,28 @@ test('test_upsert_job_deduplicates_and_preserves_kanban_status', () => {
   assert.equal(db.listJobs().length, 1);
 });
 
-test('moving job to ruins records negative preference weights', () => {
+test('moving job to ruins never penalizes tech stack and moving out of ruins clears penalties', () => {
   const db = new AppDatabase(':memory:');
   const job = db.upsertJob({
-    title: 'Especialista DevOps Sênior Presencial',
+    title: 'Especialista DevOps Sênior Presencial (AWS / Docker / Kubernetes)',
     company: 'LegacyBank',
     url: 'https://gupy.io/job/999',
     platform: 'Gupy',
     location: 'Híbrido São Paulo',
-    description: 'Trabalho híbrido presencial exigindo Java legado e Windows Server.'
+    description: 'Trabalho híbrido presencial exigindo AWS, Docker, Kubernetes, Java legado e Windows Server.'
   });
   db.moveJob(job.id, 'ruins', 'Híbrido / Presencial');
   const weights = db.getPreferenceWeights();
   assert.ok((weights['hibrido'] ?? 0) < 0 || (weights['presencial'] ?? 0) < 0);
+  // Tech stack must NEVER be penalized when a job is moved to Vagas Ruins
+  assert.equal(weights['aws'], undefined);
+  assert.equal(weights['docker'], undefined);
+  assert.equal(weights['kubernetes'], undefined);
+
+  // Removing the job from Vagas Ruins (moving back to abertas) clears the penalty completely
+  db.moveJob(job.id, 'abertas', '');
+  const clearedWeights = db.getPreferenceWeights();
+  assert.equal(Object.keys(clearedWeights).length, 0);
 });
 
 test('separates certifications (without seniority level), educations, personal projects, settings and agent MDs', () => {

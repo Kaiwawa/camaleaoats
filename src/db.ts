@@ -6,10 +6,12 @@ import type {
   AppSettings,
   CertificationItem,
   EducationItem,
+  ExperienceItem,
   Job,
   JobSeniority,
   KanbanStatus,
   Language,
+  LanguageItem,
   NewJobInput,
   PersonalProject,
   Profile,
@@ -108,6 +110,21 @@ export class AppDatabase {
         description_pt TEXT NOT NULL,
         description_en TEXT NOT NULL,
         url TEXT NOT NULL DEFAULT ''
+      );
+
+      CREATE TABLE IF NOT EXISTS languages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        language TEXT NOT NULL UNIQUE,
+        proficiency TEXT NOT NULL DEFAULT 'Intermediário'
+      );
+
+      CREATE TABLE IF NOT EXISTS experiences (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        role TEXT NOT NULL,
+        company TEXT NOT NULL,
+        period TEXT NOT NULL DEFAULT '',
+        description_pt TEXT NOT NULL DEFAULT '',
+        description_en TEXT NOT NULL DEFAULT ''
       );
 
       CREATE TABLE IF NOT EXISTS settings (
@@ -211,7 +228,24 @@ export class AppDatabase {
           JSON.stringify(['Kubernetes', 'YAML', 'ArgoCD', 'Docker', 'Kind', 'GitOps']),
           'Provisionamento de cluster Kubernetes local com Kind, configuração declarativa de manifestos YAML (Deployments, Services) e entrega contínua GitOps gerenciada pelo ArgoCD.',
           'Local Kubernetes cluster provisioning with Kind, declarative YAML manifests (Deployments, Services), and GitOps continuous delivery managed by ArgoCD.',
-          ''
+          'https://github.com/seu-usuario/homelab-gitops'
+        );
+
+      this.db
+        .prepare('INSERT OR IGNORE INTO languages (language, proficiency) VALUES (?, ?)')
+        .run('Português', 'Nativo / Fluente');
+      this.db
+        .prepare('INSERT OR IGNORE INTO languages (language, proficiency) VALUES (?, ?)')
+        .run('Inglês', 'Intermediário / Leitura Técnica');
+
+      this.db
+        .prepare('INSERT INTO experiences (role, company, period, description_pt, description_en) VALUES (?, ?, ?, ?, ?)')
+        .run(
+          'DevOps & Cloud Engineer',
+          'Experiência Prática / Projetos Cloud',
+          '2023 - Atual',
+          'Automação de esteiras CI/CD com GitHub Actions, containerização de aplicações com Docker, entrega contínua GitOps com ArgoCD e arquitetura AWS (SAA-C03).',
+          'CI/CD pipeline automation with GitHub Actions, Docker containerization, GitOps continuous delivery with ArgoCD, and AWS architecture (SAA-C03).'
         );
 
       const initialSkills: Omit<Skill, 'id'>[] = [
@@ -397,6 +431,8 @@ export class AppDatabase {
     const certRows = this.db.prepare('SELECT * FROM certifications ORDER BY id ASC').all() as Record<string, unknown>[];
     const eduRows = this.db.prepare('SELECT * FROM educations ORDER BY id ASC').all() as Record<string, unknown>[];
     const projRows = this.db.prepare('SELECT * FROM personal_projects ORDER BY id ASC').all() as Record<string, unknown>[];
+    const langRows = this.db.prepare('SELECT * FROM languages ORDER BY id ASC').all() as Record<string, unknown>[];
+    const expRows = this.db.prepare('SELECT * FROM experiences ORDER BY id ASC').all() as Record<string, unknown>[];
 
     const skills: Skill[] = skillRows.map((r) => ({
       id: Number(r.id),
@@ -436,6 +472,21 @@ export class AppDatabase {
       url: String(r.url ?? '')
     }));
 
+    const languages: LanguageItem[] = langRows.map((r) => ({
+      id: Number(r.id),
+      language: String(r.language),
+      proficiency: String(r.proficiency)
+    }));
+
+    const experiences: ExperienceItem[] = expRows.map((r) => ({
+      id: Number(r.id),
+      role: String(r.role),
+      company: String(r.company),
+      period: String(r.period ?? ''),
+      descriptionPt: String(r.description_pt ?? ''),
+      descriptionEn: String(r.description_en ?? '')
+    }));
+
     const certifications = certificationItems.map((c) =>
       c.code && !c.name.toUpperCase().includes(c.code.toUpperCase()) ? `${c.name} (${c.code})` : c.name
     );
@@ -458,6 +509,8 @@ export class AppDatabase {
       certificationItems,
       educations,
       personalProjects,
+      languages,
+      experiences,
       targetSeniority: seniority.pt,
       targetSeniorityEn: seniority.en,
       skills
@@ -495,15 +548,57 @@ export class AppDatabase {
     return this.getProfile();
   }
 
+  public updateCertification(
+    id: number,
+    patch: { name?: string; code?: string; issuer?: string; year?: string; credentialUrl?: string }
+  ): Profile {
+    const existing = this.db.prepare('SELECT * FROM certifications WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!existing) throw new Error(`Certification ${id} not found`);
+    const cleanYear = patch.year !== undefined ? String(patch.year).replace(/\D/g, '').slice(0, 4) : String(existing.year ?? '');
+    const cleanCode = patch.code !== undefined ? String(patch.code).trim().toUpperCase() : String(existing.code ?? '');
+    this.db
+      .prepare('UPDATE certifications SET name = ?, code = ?, issuer = ?, year = ?, credential_url = ? WHERE id = ?')
+      .run(
+        patch.name?.trim() || String(existing.name),
+        cleanCode,
+        patch.issuer?.trim() ?? String(existing.issuer ?? ''),
+        cleanYear,
+        patch.credentialUrl?.trim() ?? String(existing.credential_url ?? ''),
+        id
+      );
+    return this.getProfile();
+  }
+
   public deleteCertification(id: number): Profile {
     this.db.prepare('DELETE FROM certifications WHERE id = ?').run(id);
     return this.getProfile();
   }
 
   public addEducation(edu: { course: string; institution: string; degree: string; status?: string; year?: string }): Profile {
+    const cleanYear = String(edu.year ?? '').replace(/\D/g, '').slice(0, 4);
     this.db
       .prepare('INSERT INTO educations (course, institution, degree, status, year) VALUES (?, ?, ?, ?, ?)')
-      .run(edu.course.trim(), edu.institution.trim(), edu.degree.trim(), edu.status?.trim() || 'Concluído', edu.year?.trim() || '');
+      .run(edu.course.trim(), edu.institution.trim(), edu.degree.trim(), edu.status?.trim() || 'Concluído', cleanYear);
+    return this.getProfile();
+  }
+
+  public updateEducation(
+    id: number,
+    patch: { course?: string; institution?: string; degree?: string; status?: string; year?: string }
+  ): Profile {
+    const existing = this.db.prepare('SELECT * FROM educations WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!existing) throw new Error(`Education ${id} not found`);
+    const cleanYear = patch.year !== undefined ? String(patch.year).replace(/\D/g, '').slice(0, 4) : String(existing.year ?? '');
+    this.db
+      .prepare('UPDATE educations SET course = ?, institution = ?, degree = ?, status = ?, year = ? WHERE id = ?')
+      .run(
+        patch.course?.trim() || String(existing.course),
+        patch.institution?.trim() || String(existing.institution),
+        patch.degree?.trim() || String(existing.degree),
+        patch.status?.trim() || String(existing.status),
+        cleanYear,
+        id
+      );
     return this.getProfile();
   }
 
@@ -514,6 +609,70 @@ export class AppDatabase {
 
   public clearPlaceholderEducations(): void {
     this.db.prepare(`DELETE FROM educations WHERE institution = 'Instituição de Ensino Superior'`).run();
+  }
+
+  public clearPlaceholderExperiences(): void {
+    this.db.prepare(`DELETE FROM experiences WHERE company = 'Experiência Prática / Projetos Cloud'`).run();
+  }
+
+  public addLanguage(item: { language: string; proficiency: string }): Profile {
+    this.db
+      .prepare(
+        `INSERT INTO languages (language, proficiency) VALUES (?, ?)
+         ON CONFLICT(language) DO UPDATE SET proficiency = excluded.proficiency`
+      )
+      .run(item.language.trim(), item.proficiency.trim() || 'Intermediário');
+    return this.getProfile();
+  }
+
+  public deleteLanguage(id: number): Profile {
+    this.db.prepare('DELETE FROM languages WHERE id = ?').run(id);
+    return this.getProfile();
+  }
+
+  public addExperience(exp: {
+    role: string;
+    company: string;
+    period?: string;
+    descriptionPt: string;
+    descriptionEn?: string;
+  }): Profile {
+    this.db
+      .prepare('INSERT INTO experiences (role, company, period, description_pt, description_en) VALUES (?, ?, ?, ?, ?)')
+      .run(
+        exp.role.trim(),
+        exp.company.trim(),
+        exp.period?.trim() || '',
+        exp.descriptionPt.trim(),
+        (exp.descriptionEn || exp.descriptionPt).trim()
+      );
+    return this.getProfile();
+  }
+
+  public updateExperience(
+    id: number,
+    patch: { role?: string; company?: string; period?: string; descriptionPt?: string; descriptionEn?: string }
+  ): Profile {
+    const existing = this.db.prepare('SELECT * FROM experiences WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!existing) throw new Error(`Experience ${id} not found`);
+    const nextPt = patch.descriptionPt?.trim() ?? String(existing.description_pt ?? '');
+    const nextEn = patch.descriptionEn?.trim() || nextPt;
+    this.db
+      .prepare('UPDATE experiences SET role = ?, company = ?, period = ?, description_pt = ?, description_en = ? WHERE id = ?')
+      .run(
+        patch.role?.trim() || String(existing.role),
+        patch.company?.trim() || String(existing.company),
+        patch.period !== undefined ? patch.period.trim() : String(existing.period ?? ''),
+        nextPt,
+        nextEn,
+        id
+      );
+    return this.getProfile();
+  }
+
+  public deleteExperience(id: number): Profile {
+    this.db.prepare('DELETE FROM experiences WHERE id = ?').run(id);
+    return this.getProfile();
   }
 
   public deleteDemoJobs(): void {
@@ -547,6 +706,28 @@ export class AppDatabase {
         proj.descriptionPt.trim(),
         (proj.descriptionEn || proj.descriptionPt).trim(),
         proj.url?.trim() || ''
+      );
+    return this.getProfile();
+  }
+
+  public updatePersonalProject(
+    id: number,
+    patch: { name?: string; techStack?: string[]; descriptionPt?: string; descriptionEn?: string; url?: string }
+  ): Profile {
+    const existing = this.db.prepare('SELECT * FROM personal_projects WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!existing) throw new Error(`Project ${id} not found`);
+    const nextPt = patch.descriptionPt?.trim() ?? String(existing.description_pt ?? '');
+    const nextEn = patch.descriptionEn?.trim() || nextPt;
+    const nextStack = patch.techStack && patch.techStack.length > 0 ? JSON.stringify(patch.techStack) : String(existing.tech_stack_json);
+    this.db
+      .prepare('UPDATE personal_projects SET name = ?, tech_stack_json = ?, description_pt = ?, description_en = ?, url = ? WHERE id = ?')
+      .run(
+        patch.name?.trim() || String(existing.name),
+        nextStack,
+        nextPt,
+        nextEn,
+        patch.url !== undefined ? patch.url.trim() : String(existing.url ?? ''),
+        id
       );
     return this.getProfile();
   }
@@ -819,49 +1000,42 @@ export class AppDatabase {
     if (!job) throw new Error(`Job ${id} not found`);
 
     const appliedAt = status === 'em_processo' && !job.appliedAt ? new Date().toISOString() : job.appliedAt || '';
+    const nextReason = status === 'ruins' ? reason : '';
 
     this.db
       .prepare('UPDATE jobs SET status = ?, reject_reason = ?, applied_at = ? WHERE id = ?')
-      .run(status, reason, appliedAt, id);
+      .run(status, nextReason, appliedAt, id);
 
-    if (status === 'ruins') {
-      this.learnFromFeedback(`${job.title} ${job.location} ${reason} ${job.description}`, -10);
-    } else if (status === 'em_processo') {
-      this.learnFromFeedback(`${job.title} ${job.location}`, 5);
-    }
+    this.recalculatePreferenceWeights();
 
     return this.getJob(id)!;
   }
 
-  private learnFromFeedback(text: string, delta: number): void {
-    const trackedTerms = [
-      'hibrido',
-      'presencial',
-      'on-site',
-      'hybrid',
-      'java',
-      'windows',
-      'php',
-      'remoto',
-      'remote',
-      'aws',
-      'docker',
-      'argocd',
-      'kubernetes',
-      'terraform',
-      'grafana',
-      'devops',
-      'sre'
-    ];
-    const normalizedText = normalizeToken(text);
+  private recalculatePreferenceWeights(): void {
+    // Clear all weights and recompute ONLY from jobs currently in "ruins"
+    // IMPORTANT: Never penalize tech stack keywords (Vagas Ruins is for bad company, work model, benefits, or salary).
+    // When a job is moved out of "ruins", its penalties disappear immediately.
+    this.db.exec('DELETE FROM preference_weights');
+    const badJobs = this.db
+      .prepare(`SELECT company, location, reject_reason, description FROM jobs WHERE status = 'ruins'`)
+      .all() as Array<{ company: string; location: string; reject_reason: string; description: string }>;
+
+    const nonStackTerms = ['hibrido', 'presencial', 'on-site', 'hybrid'];
     const upsertWeight = this.db.prepare(
       `INSERT INTO preference_weights (token, weight) VALUES (?, ?)
        ON CONFLICT(token) DO UPDATE SET weight = preference_weights.weight + excluded.weight`
     );
 
-    for (const term of trackedTerms) {
-      if (normalizedText.includes(term)) {
-        upsertWeight.run(term, delta);
+    for (const bj of badJobs) {
+      const sample = normalizeToken(`${bj.location} ${bj.reject_reason} ${bj.description}`);
+      for (const term of nonStackTerms) {
+        if (sample.includes(term)) {
+          upsertWeight.run(term, -10);
+        }
+      }
+      const normCompany = normalizeToken(bj.company);
+      if (normCompany.length >= 2) {
+        upsertWeight.run(`company:${normCompany}`, -15);
       }
     }
   }

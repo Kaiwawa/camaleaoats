@@ -197,8 +197,17 @@ test('extractProfileFromCvText parses multi-section Portuguese/English CVs into 
     HABILIDADES TÉCNICAS
     Docker (Avançado), AWS (Avançado), GitHub Actions, ArgoCD, Kubernetes (Iniciante - YAML), Terraform, Ansible, Grafana, Linux, Python
 
+    EXPERIÊNCIA PROFISSIONAL
+    Engenheiro DevOps Júnior - CloudTech Solutions (2023 - Atual)
+    Automação de pipelines CI/CD com GitHub Actions, containers Docker e deploys GitOps com ArgoCD na AWS.
+
     PROJETOS PESSOAIS
-    - Homelab Observability Stack: Monitoramento de containers Docker e Kubernetes com Grafana e Prometheus.
+    - Homelab Observability Stack: Monitoramento de containers Docker e Kubernetes com Grafana e Prometheus https://github.com/gabrieldevops/homelab-obs
+
+    IDIOMAS
+    - Português: Nativo
+    - Inglês: Avançado
+    - Espanhol: Básico
   `;
 
   const profile = extractProfileFromCvText(multiSectionCv, db);
@@ -222,8 +231,16 @@ test('extractProfileFromCvText parses multi-section Portuguese/English CVs into 
   assert.ok(profile.skills.some((s) => s.name === 'Python'));
   assert.ok(profile.skills.some((s) => s.name === 'Linux'));
 
-  // Projects routed to personalProjects
-  assert.ok(profile.personalProjects.some((p) => p.name.includes('Homelab Observability Stack')));
+  // Experiences extracted and placeholder replaced
+  assert.ok(profile.experiences.some((ex) => ex.role.includes('Engenheiro DevOps') && ex.company.includes('CloudTech')));
+
+  // Languages extracted
+  assert.ok(profile.languages.some((lg) => lg.language === 'Espanhol' && lg.proficiency === 'Básico'));
+
+  // Projects routed to personalProjects with extracted URL
+  const obsProj = profile.personalProjects.find((p) => p.name.includes('Homelab Observability Stack'));
+  assert.ok(obsProj);
+  assert.equal(obsProj.url, 'https://github.com/gabrieldevops/homelab-obs');
 });
 
 

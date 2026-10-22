@@ -63,13 +63,12 @@ function applyTheme(themeMode) {
       : 'dark';
   document.documentElement.setAttribute('data-theme', resolved);
   const isDark = resolved === 'dark';
-  ['btn-theme-toggle', 'btn-theme-toggle-settings'].forEach((id) => {
-    const sw = document.getElementById(id);
-    if (!sw) return;
+  const sw = document.getElementById('btn-theme-toggle');
+  if (sw) {
     sw.setAttribute('aria-checked', isDark ? 'true' : 'false');
     const iconEl = sw.querySelector('.dn-thumb-icon');
     if (iconEl) iconEl.textContent = isDark ? '🌙' : '☀️';
-  });
+  }
 }
 
 async function toggleDayNightSwitch() {
@@ -105,8 +104,8 @@ async function loadBootstrap() {
 function renderHeader() {
   if (!state.profile) return;
   const allOpt = document.querySelector('#filter-seniority option[value="all"]');
-  if (allOpt && state.profile.targetSeniority) {
-    allOpt.textContent = `Todas (Foco: ${state.profile.targetSeniority})`;
+  if (allOpt) {
+    allOpt.textContent = 'Todas';
   }
   const loc = (state.profile.locationPt || '').toLowerCase();
   if (loc.includes('global') || loc.includes('latam') || loc.includes('worldwide')) {
@@ -122,10 +121,44 @@ function renderHeader() {
   }
 }
 
-// Day & Night On/Off Switch buttons
-['btn-theme-toggle', 'btn-theme-toggle-settings'].forEach((id) => {
-  const el = document.getElementById(id);
-  if (el) el.addEventListener('click', toggleDayNightSwitch);
+// Day & Night On/Off Switch button (Landing Page only)
+const themeBtnEl = document.getElementById('btn-theme-toggle');
+if (themeBtnEl) themeBtnEl.addEventListener('click', toggleDayNightSwitch);
+
+// Global ESC key handler to close any open popup/modal
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  document.getElementById('toast-banner')?.classList.add('hidden');
+
+  const miniModals = [
+    'scrape-confirm-modal-backdrop',
+    'skill-edit-modal-backdrop',
+    'cert-edit-modal-backdrop',
+    'edu-edit-modal-backdrop',
+    'proj-edit-modal-backdrop',
+    'exp-edit-modal-backdrop'
+  ];
+  for (const id of miniModals) {
+    const el = document.getElementById(id);
+    if (el && !el.classList.contains('hidden')) {
+      el.classList.add('hidden');
+      return;
+    }
+  }
+
+  const mainModals = [
+    'job-modal-backdrop',
+    'profile-modal-backdrop',
+    'settings-modal-backdrop',
+    'ingest-modal-backdrop'
+  ];
+  for (const id of mainModals) {
+    const el = document.getElementById(id);
+    if (el && !el.classList.contains('hidden')) {
+      el.classList.add('hidden');
+      return;
+    }
+  }
 });
 
 // Unified Seniority dropdown (filters Kanban & sets scrape seniority)
@@ -401,27 +434,42 @@ document.getElementById('btn-save-recruiter').addEventListener('click', async ()
 
 document.getElementById('btn-auto-apply').addEventListener('click', async () => {
   if (!state.activeJobId) return;
-  const res = await fetch(`/api/jobs/${state.activeJobId}/apply`, {
+  const job = state.jobs.find((j) => j.id === state.activeJobId);
+
+  // 1. Open the original job site in a new tab
+  if (job && job.url) {
+    window.open(job.url, '_blank', 'noopener');
+  }
+
+  // 2. Trigger automatic download of the tailored ATS PDF CV
+  const pdfUrl = `/api/jobs/${state.activeJobId}/cv.pdf?lang=${encodeURIComponent(state.activeLang)}`;
+  const dlLink = document.createElement('a');
+  dlLink.href = pdfUrl;
+  dlLink.setAttribute('download', `CV-${(job?.company || 'Vaga').replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`);
+  document.body.appendChild(dlLink);
+  dlLink.click();
+  document.body.removeChild(dlLink);
+
+  // 3. Move the job card to "em_processo"
+  await fetch(`/api/jobs/${state.activeJobId}/move`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ lang: state.activeLang })
+    body: JSON.stringify({ status: 'em_processo', reason: '' })
   });
-  const outcome = await res.json();
-  const logEl = document.getElementById('modal-apply-log');
-  logEl.innerHTML =
-    `<strong>✅ Automação concluída (${outcome.mode === 'gupy_apresentese' ? 'Modo Gupy Apresente-se' : 'Modo Upload PDF'}):</strong><br/>` +
-    (outcome.stepsExecuted || []).map((s) => `• ${escapeHtmlClient(s)}`).join('<br/>');
-  logEl.classList.remove('hidden');
+
   await loadBootstrap();
-  showToast('Candidatura preparada e card movido para "Em Processo"!');
+  document.getElementById('job-modal-backdrop').classList.add('hidden');
+  showToast('Site da vaga aberto, CV ajustado baixado e card movido para "Em Processo"!');
 });
 
-document.getElementById('btn-scrape').addEventListener('click', async () => {
+let hasConfirmedFirstSearch = false;
+
+async function executeJobScrape() {
   const btn = document.getElementById('btn-scrape');
   const originalText = btn.textContent;
   btn.disabled = true;
-  btn.textContent = '⏳ Buscando no LinkedIn / Remotive...';
-  showToast('Buscando vagas reais no LinkedIn, Jobicy e Remotive com base nas suas Skills, Senioridade e Modalidade...');
+  btn.textContent = '⏳ Buscando Vagas...';
+  showToast('Buscando vagas reais com base no seu Título Profissional, Senioridade e Localização/Modalidade...');
   try {
     const res = await fetch('/api/jobs/scrape', {
       method: 'POST',
@@ -433,11 +481,51 @@ document.getElementById('btn-scrape').addEventListener('click', async () => {
     });
     const data = await res.json();
     await loadBootstrap();
-    showToast(`Busca concluída! ${data.added || 0} novas vagas processadas (${data.total} no Kanban).`);
+    showToast(`Busca concluída! ${data.added || 0} novas vagas adicionadas (${data.total} no Kanban).`);
   } finally {
     btn.disabled = false;
     btn.textContent = originalText;
   }
+}
+
+document.getElementById('btn-scrape').addEventListener('click', async () => {
+  if (!hasConfirmedFirstSearch) {
+    const rawTitle = (state.profile?.titlePt || 'DevOps Engineer').split(/[|•–—/]/)[0].trim();
+    document.getElementById('confirm-scrape-title').textContent = rawTitle || 'DevOps Engineer';
+    document.getElementById('confirm-scrape-seniority').value = state.seniorityFilter || 'all';
+    document.getElementById('confirm-scrape-workmode').value = state.workMode || 'remoto_br';
+    document.getElementById('scrape-confirm-modal-backdrop').classList.remove('hidden');
+    return;
+  }
+  await executeJobScrape();
+});
+
+document.getElementById('btn-close-scrape-confirm').addEventListener('click', () => {
+  document.getElementById('scrape-confirm-modal-backdrop').classList.add('hidden');
+});
+document.getElementById('btn-cancel-scrape-confirm').addEventListener('click', () => {
+  document.getElementById('scrape-confirm-modal-backdrop').classList.add('hidden');
+});
+document.getElementById('btn-confirm-scrape-run').addEventListener('click', async () => {
+  hasConfirmedFirstSearch = true;
+  state.seniorityFilter = document.getElementById('confirm-scrape-seniority').value;
+  state.workMode = document.getElementById('confirm-scrape-workmode').value;
+  document.getElementById('filter-seniority').value = state.seniorityFilter;
+  document.getElementById('select-work-mode').value = state.workMode;
+  document.getElementById('scrape-confirm-modal-backdrop').classList.add('hidden');
+
+  const mapped = WORK_MODE_LOCATIONS[state.workMode] || WORK_MODE_LOCATIONS.remoto_br;
+  await fetch('/api/profile/evolve', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      profileInfo: {
+        locationPt: mapped.pt,
+        locationEn: mapped.en
+      }
+    })
+  });
+  await executeJobScrape();
 });
 
 // ============================================================================
@@ -491,7 +579,7 @@ document.getElementById('prof-name').addEventListener('input', (e) => {
   });
 });
 
-['new-cert-year', 'new-edu-year'].forEach((id) => {
+['new-cert-year', 'new-edu-year', 'edit-cert-year', 'edit-edu-year'].forEach((id) => {
   const el = document.getElementById(id);
   if (el) {
     el.addEventListener('input', (e) => {
@@ -501,7 +589,7 @@ document.getElementById('prof-name').addEventListener('input', (e) => {
 });
 
 // ============================================================================
-// MODAL 2: PERFIL (5 Separated Tabs + CV Extractor)
+// MODAL 2: PERFIL (6 Separated Tabs + Languages + Pencil Editing + CV Extractor)
 // ============================================================================
 function renderProfileModalContent() {
   if (!state.profile) return;
@@ -512,9 +600,91 @@ function renderProfileModalContent() {
   document.getElementById('prof-linkedin').value = p.linkedin || '';
   document.getElementById('prof-github').value = p.github || '';
   document.getElementById('prof-title-pt').value = p.titlePt || '';
-  document.getElementById('prof-title-en').value = p.titleEn || '';
 
-  // Tab 2: Skills (Read-only card + Pencil button ✏️ that opens the Edit Skill Mini Popup)
+  // Languages inside Tab 1 (Dados Pessoais)
+  const langsEl = document.getElementById('langs-list');
+  if (langsEl) {
+    langsEl.innerHTML = '';
+    for (const lg of p.languages || []) {
+      const row = document.createElement('div');
+      row.className = 'list-row-card';
+      row.innerHTML = `
+        <div>
+          <strong>🗣️ ${escapeHtmlClient(lg.language)}</strong>
+          <span class="seniority-tag" style="margin-left:8px;">${escapeHtmlClient(lg.proficiency)}</span>
+        </div>
+        <button type="button" class="btn btn-xs btn-danger" data-del-lang="${lg.id}" title="Remover Idioma">✕</button>
+      `;
+      langsEl.appendChild(row);
+    }
+    langsEl.querySelectorAll('[data-del-lang]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        await fetch('/api/profile/languages', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ deleteId: Number(btn.dataset.delLang) })
+        });
+        await loadBootstrap();
+        renderProfileModalContent();
+        showToast('Idioma removido.');
+      });
+    });
+  }
+
+  // Tab 2: Professional Experience (with Pencil ✏️ Edit & Delete)
+  const expEl = document.getElementById('exp-list');
+  if (expEl) {
+    expEl.innerHTML = '';
+    for (const ex of p.experiences || []) {
+      const row = document.createElement('div');
+      row.className = 'list-row-card';
+      row.innerHTML = `
+        <div style="flex:1; min-width:0;">
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <strong>💼 ${escapeHtmlClient(ex.role)}</strong>
+            <span class="tag-chip">${escapeHtmlClient(ex.company)}</span>
+            ${ex.period ? `<span class="seniority-tag">${escapeHtmlClient(ex.period)}</span>` : ''}
+          </div>
+          <div style="font-size:12px; color:var(--muted); margin-top:4px; line-height:1.4;">
+            ${escapeHtmlClient(ex.descriptionPt)}
+          </div>
+        </div>
+        <div style="display:flex; gap:6px; flex-shrink:0;">
+          <button type="button" class="btn btn-xs btn-secondary" data-edit-exp="${ex.id}" title="Editar Experiência">✏️</button>
+          <button type="button" class="btn btn-xs btn-danger" data-del-exp="${ex.id}" title="Remover Experiência">✕</button>
+        </div>
+      `;
+      expEl.appendChild(row);
+    }
+    expEl.querySelectorAll('[data-edit-exp]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = Number(btn.dataset.editExp);
+        const exp = (state.profile?.experiences || []).find((x) => x.id === id);
+        if (!exp) return;
+        document.getElementById('edit-exp-id').value = String(exp.id);
+        document.getElementById('edit-exp-role').value = exp.role || '';
+        document.getElementById('edit-exp-company').value = exp.company || '';
+        document.getElementById('edit-exp-period').value = exp.period || '';
+        document.getElementById('edit-exp-pt').value = exp.descriptionPt || '';
+        document.getElementById('edit-exp-en').value = exp.descriptionEn || '';
+        document.getElementById('exp-edit-modal-backdrop').classList.remove('hidden');
+      });
+    });
+    expEl.querySelectorAll('[data-del-exp]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        await fetch('/api/profile/experiences', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ deleteId: Number(btn.dataset.delExp) })
+        });
+        await loadBootstrap();
+        renderProfileModalContent();
+        showToast('Experiência removida.');
+      });
+    });
+  }
+
+  // Tab 3: Skills (Read-only card + Pencil button ✏️ that opens the Edit Skill Mini Popup)
   const LEVEL_BADGES = {
     evolving: '🟡 Iniciante / Em Evolução',
     practical: '🟢 Prático / Autônomo',
@@ -573,7 +743,7 @@ function renderProfileModalContent() {
     });
   });
 
-  // Tab 3: Certifications (NO seniority level — Name + Code + Issuer + Expiration Year)
+  // Tab 4: Certifications (with Pencil ✏️ Edit & Delete)
   const certsEl = document.getElementById('certs-list');
   certsEl.innerHTML = '';
   for (const c of p.certificationItems || []) {
@@ -590,10 +760,26 @@ function renderProfileModalContent() {
           ${c.year ? ` • Vencimento: <strong>${escapeHtmlClient(c.year)}</strong>` : ''}
         </div>
       </div>
-      <button type="button" class="btn btn-xs btn-danger" data-del-cert="${c.id}">Remover</button>
+      <div style="display:flex; gap:6px; flex-shrink:0;">
+        <button type="button" class="btn btn-xs btn-secondary" data-edit-cert="${c.id}" title="Editar Certificação">✏️</button>
+        <button type="button" class="btn btn-xs btn-danger" data-del-cert="${c.id}" title="Remover Certificação">✕</button>
+      </div>
     `;
     certsEl.appendChild(row);
   }
+  certsEl.querySelectorAll('[data-edit-cert]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = Number(btn.dataset.editCert);
+      const cert = (state.profile?.certificationItems || []).find((ct) => ct.id === id);
+      if (!cert) return;
+      document.getElementById('edit-cert-id').value = String(cert.id);
+      document.getElementById('edit-cert-name').value = cert.name || '';
+      document.getElementById('edit-cert-code').value = cert.code || '';
+      document.getElementById('edit-cert-issuer').value = cert.issuer || '';
+      document.getElementById('edit-cert-year').value = cert.year || '';
+      document.getElementById('cert-edit-modal-backdrop').classList.remove('hidden');
+    });
+  });
   certsEl.querySelectorAll('[data-del-cert]').forEach((btn) => {
     btn.addEventListener('click', async () => {
       await fetch('/api/profile/certifications', {
@@ -607,7 +793,7 @@ function renderProfileModalContent() {
     });
   });
 
-  // Tab 4: Educations / Degrees
+  // Tab 5: Educations / Degrees / Courses (with Pencil ✏️ Edit & Delete)
   const eduEl = document.getElementById('edu-list');
   eduEl.innerHTML = '';
   for (const ed of p.educations || []) {
@@ -618,10 +804,27 @@ function renderProfileModalContent() {
         <strong>🎓 ${escapeHtmlClient(ed.degree)} — ${escapeHtmlClient(ed.course)}</strong>
         <div style="font-size:12px; color:var(--muted);">${escapeHtmlClient(ed.institution)} • ${escapeHtmlClient(ed.status)} ${ed.year ? `(${escapeHtmlClient(ed.year)})` : ''}</div>
       </div>
-      <button type="button" class="btn btn-xs btn-danger" data-del-edu="${ed.id}">Remover</button>
+      <div style="display:flex; gap:6px; flex-shrink:0;">
+        <button type="button" class="btn btn-xs btn-secondary" data-edit-edu="${ed.id}" title="Editar Formação / Curso">✏️</button>
+        <button type="button" class="btn btn-xs btn-danger" data-del-edu="${ed.id}" title="Remover Formação">✕</button>
+      </div>
     `;
     eduEl.appendChild(row);
   }
+  eduEl.querySelectorAll('[data-edit-edu]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = Number(btn.dataset.editEdu);
+      const ed = (state.profile?.educations || []).find((e) => e.id === id);
+      if (!ed) return;
+      document.getElementById('edit-edu-id').value = String(ed.id);
+      document.getElementById('edit-edu-course').value = ed.course || '';
+      document.getElementById('edit-edu-inst').value = ed.institution || '';
+      document.getElementById('edit-edu-degree').value = ed.degree || 'Tecnólogo';
+      document.getElementById('edit-edu-status').value = ed.status || 'Concluído';
+      document.getElementById('edit-edu-year').value = ed.year || '';
+      document.getElementById('edu-edit-modal-backdrop').classList.remove('hidden');
+    });
+  });
   eduEl.querySelectorAll('[data-del-edu]').forEach((btn) => {
     btn.addEventListener('click', async () => {
       await fetch('/api/profile/educations', {
@@ -635,22 +838,42 @@ function renderProfileModalContent() {
     });
   });
 
-  // Tab 5: Personal Projects
+  // Tab 6: Personal Projects (with Link + Pencil ✏️ Edit & Delete)
   const projEl = document.getElementById('projects-list');
   projEl.innerHTML = '';
   for (const pr of p.personalProjects || []) {
     const row = document.createElement('div');
     row.className = 'list-row-card';
     row.innerHTML = `
-      <div>
-        <strong>🚀 ${escapeHtmlClient(pr.name)}</strong>
-        <span class="seniority-tag" style="margin-left:6px;">${escapeHtmlClient((pr.techStack || []).join(', '))}</span>
+      <div style="flex:1; min-width:0;">
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <strong>🚀 ${escapeHtmlClient(pr.name)}</strong>
+          <span class="seniority-tag">${escapeHtmlClient((pr.techStack || []).join(', '))}</span>
+          ${pr.url ? `<a href="${escapeHtmlClient(pr.url)}" target="_blank" rel="noopener" style="font-size:12px; color:var(--primary); font-weight:600;">🔗 Link ↗</a>` : ''}
+        </div>
         <div style="font-size:12px; color:var(--muted); margin-top:4px;">${escapeHtmlClient(pr.descriptionPt)}</div>
       </div>
-      <button type="button" class="btn btn-xs btn-danger" data-del-proj="${pr.id}">Remover</button>
+      <div style="display:flex; gap:6px; flex-shrink:0;">
+        <button type="button" class="btn btn-xs btn-secondary" data-edit-proj="${pr.id}" title="Editar Projeto">✏️</button>
+        <button type="button" class="btn btn-xs btn-danger" data-del-proj="${pr.id}" title="Remover Projeto">✕</button>
+      </div>
     `;
     projEl.appendChild(row);
   }
+  projEl.querySelectorAll('[data-edit-proj]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = Number(btn.dataset.editProj);
+      const pr = (state.profile?.personalProjects || []).find((pItem) => pItem.id === id);
+      if (!pr) return;
+      document.getElementById('edit-proj-id').value = String(pr.id);
+      document.getElementById('edit-proj-name').value = pr.name || '';
+      document.getElementById('edit-proj-stack').value = (pr.techStack || []).join(', ');
+      document.getElementById('edit-proj-url').value = pr.url || '';
+      document.getElementById('edit-proj-pt').value = pr.descriptionPt || '';
+      document.getElementById('edit-proj-en').value = pr.descriptionEn || '';
+      document.getElementById('proj-edit-modal-backdrop').classList.remove('hidden');
+    });
+  });
   projEl.querySelectorAll('[data-del-proj]').forEach((btn) => {
     btn.addEventListener('click', async () => {
       await fetch('/api/profile/projects', {
@@ -669,7 +892,7 @@ document.querySelectorAll('.profile-tab').forEach((btn) => {
   btn.addEventListener('click', () => {
     const target = btn.dataset.ptab;
     document.querySelectorAll('.profile-tab').forEach((b) => b.classList.toggle('active', b.dataset.ptab === target));
-    ['ptab-dados', 'ptab-skills', 'ptab-certs', 'ptab-edu', 'ptab-projects'].forEach((id) => {
+    ['ptab-dados', 'ptab-exp', 'ptab-skills', 'ptab-certs', 'ptab-edu', 'ptab-projects'].forEach((id) => {
       document.getElementById(id).classList.toggle('hidden', id !== target);
     });
   });
@@ -718,7 +941,7 @@ document.getElementById('input-cv-file').addEventListener('change', async (e) =>
   renderProfileModalContent();
   const prof = data.profile || state.profile;
   showToast(
-    `CV importado! Extraídos: ${prof.skills?.length || 0} Skills, ${prof.certificationItems?.length || 0} Certificações, ${prof.educations?.length || 0} Formações e ${prof.personalProjects?.length || 0} Projetos.`
+    `CV importado! Extraídos: ${prof.experiences?.length || 0} Experiências, ${prof.skills?.length || 0} Skills, ${prof.certificationItems?.length || 0} Certificações, ${prof.educations?.length || 0} Formações e ${prof.personalProjects?.length || 0} Projetos.`
   );
   e.target.value = '';
 });
@@ -737,7 +960,7 @@ document.getElementById('btn-run-cv-extract').addEventListener('click', async ()
   document.getElementById('cv-paste-drawer').classList.add('hidden');
   const prof = data.profile || state.profile;
   showToast(
-    `Extração concluída! ${prof.skills?.length || 0} Skills, ${prof.certificationItems?.length || 0} Certificações, ${prof.educations?.length || 0} Formações e ${prof.personalProjects?.length || 0} Projetos preenchidos nas 5 abas.`
+    `Extração concluída! ${prof.experiences?.length || 0} Experiências, ${prof.skills?.length || 0} Skills, ${prof.certificationItems?.length || 0} Certificações, ${prof.educations?.length || 0} Formações e ${prof.personalProjects?.length || 0} Projetos.`
   );
 });
 
@@ -750,6 +973,7 @@ document.getElementById('btn-save-profile-info').addEventListener('click', async
   }
   const phoneVal = formatPhoneMaskClient(document.getElementById('prof-phone').value);
   document.getElementById('prof-phone').value = phoneVal;
+  const titleVal = document.getElementById('prof-title-pt').value.trim();
 
   await fetch('/api/profile/evolve', {
     method: 'POST',
@@ -761,13 +985,76 @@ document.getElementById('btn-save-profile-info').addEventListener('click', async
         phone: phoneVal,
         linkedin: document.getElementById('prof-linkedin').value.trim(),
         github: document.getElementById('prof-github').value.trim(),
-        titlePt: document.getElementById('prof-title-pt').value.trim(),
-        titleEn: document.getElementById('prof-title-en').value.trim()
+        titlePt: titleVal,
+        titleEn: titleVal
       }
     })
   });
   await loadBootstrap();
   showToast('Dados pessoais validados e salvos com sucesso!');
+});
+
+document.getElementById('btn-add-lang').addEventListener('click', async () => {
+  const language = document.getElementById('new-lang-name').value.trim();
+  const proficiency = document.getElementById('new-lang-prof').value;
+  if (!language) return;
+  await fetch('/api/profile/languages', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ language, proficiency })
+  });
+  document.getElementById('new-lang-name').value = '';
+  await loadBootstrap();
+  renderProfileModalContent();
+  showToast(`Idioma "${language}" adicionado!`);
+});
+
+document.getElementById('btn-add-exp').addEventListener('click', async () => {
+  const role = document.getElementById('new-exp-role').value.trim();
+  const company = document.getElementById('new-exp-company').value.trim();
+  const period = document.getElementById('new-exp-period').value.trim();
+  const descriptionPt = document.getElementById('new-exp-pt').value.trim();
+  const descriptionEn = document.getElementById('new-exp-en').value.trim();
+  if (!role || !company) return;
+  await fetch('/api/profile/experiences', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ role, company, period, descriptionPt, descriptionEn })
+  });
+  document.getElementById('new-exp-role').value = '';
+  document.getElementById('new-exp-company').value = '';
+  document.getElementById('new-exp-period').value = '';
+  document.getElementById('new-exp-pt').value = '';
+  document.getElementById('new-exp-en').value = '';
+  await loadBootstrap();
+  renderProfileModalContent();
+  showToast('Experiência profissional adicionada!');
+});
+
+// Mini Popup handlers for Editing Experience
+document.getElementById('btn-close-exp-edit-modal').addEventListener('click', () => {
+  document.getElementById('exp-edit-modal-backdrop').classList.add('hidden');
+});
+document.getElementById('btn-cancel-exp-edit').addEventListener('click', () => {
+  document.getElementById('exp-edit-modal-backdrop').classList.add('hidden');
+});
+document.getElementById('btn-save-exp-edit').addEventListener('click', async () => {
+  const editId = Number(document.getElementById('edit-exp-id').value);
+  if (!editId) return;
+  const role = document.getElementById('edit-exp-role').value.trim();
+  const company = document.getElementById('edit-exp-company').value.trim();
+  const period = document.getElementById('edit-exp-period').value.trim();
+  const descriptionPt = document.getElementById('edit-exp-pt').value.trim();
+  const descriptionEn = document.getElementById('edit-exp-en').value.trim();
+  await fetch('/api/profile/experiences', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ editId, role, company, period, descriptionPt, descriptionEn })
+  });
+  document.getElementById('exp-edit-modal-backdrop').classList.add('hidden');
+  await loadBootstrap();
+  renderProfileModalContent();
+  showToast('Experiência profissional atualizada!');
 });
 
 document.getElementById('btn-add-skill').addEventListener('click', async () => {
@@ -869,19 +1156,100 @@ document.getElementById('btn-add-edu').addEventListener('click', async () => {
   showToast('Formação adicionada!');
 });
 
+// Mini Popup handlers for Editing Certification, Education, and Project
+document.getElementById('btn-close-cert-edit-modal').addEventListener('click', () => {
+  document.getElementById('cert-edit-modal-backdrop').classList.add('hidden');
+});
+document.getElementById('btn-cancel-cert-edit').addEventListener('click', () => {
+  document.getElementById('cert-edit-modal-backdrop').classList.add('hidden');
+});
+document.getElementById('btn-save-cert-edit').addEventListener('click', async () => {
+  const editId = Number(document.getElementById('edit-cert-id').value);
+  if (!editId) return;
+  const name = document.getElementById('edit-cert-name').value.trim();
+  const code = document.getElementById('edit-cert-code').value.trim().toUpperCase();
+  const issuer = document.getElementById('edit-cert-issuer').value.trim();
+  const year = document.getElementById('edit-cert-year').value.replace(/\D/g, '').slice(0, 4);
+  if (year && year.length !== 4) {
+    showToast('⚠️ O ano de vencimento deve conter 4 dígitos numéricos (Ex: 2028).');
+    return;
+  }
+  await fetch('/api/profile/certifications', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ editId, name, code, issuer, year })
+  });
+  document.getElementById('cert-edit-modal-backdrop').classList.add('hidden');
+  await loadBootstrap();
+  renderProfileModalContent();
+  showToast('Certificação atualizada com sucesso!');
+});
+
+document.getElementById('btn-close-edu-edit-modal').addEventListener('click', () => {
+  document.getElementById('edu-edit-modal-backdrop').classList.add('hidden');
+});
+document.getElementById('btn-cancel-edu-edit').addEventListener('click', () => {
+  document.getElementById('edu-edit-modal-backdrop').classList.add('hidden');
+});
+document.getElementById('btn-save-edu-edit').addEventListener('click', async () => {
+  const editId = Number(document.getElementById('edit-edu-id').value);
+  if (!editId) return;
+  const course = document.getElementById('edit-edu-course').value.trim();
+  const institution = document.getElementById('edit-edu-inst').value.trim();
+  const degree = document.getElementById('edit-edu-degree').value;
+  const status = document.getElementById('edit-edu-status').value;
+  const year = document.getElementById('edit-edu-year').value.replace(/\D/g, '').slice(0, 4);
+  await fetch('/api/profile/educations', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ editId, course, institution, degree, status, year })
+  });
+  document.getElementById('edu-edit-modal-backdrop').classList.add('hidden');
+  await loadBootstrap();
+  renderProfileModalContent();
+  showToast('Formação / Curso atualizado com sucesso!');
+});
+
+document.getElementById('btn-close-proj-edit-modal').addEventListener('click', () => {
+  document.getElementById('proj-edit-modal-backdrop').classList.add('hidden');
+});
+document.getElementById('btn-cancel-proj-edit').addEventListener('click', () => {
+  document.getElementById('proj-edit-modal-backdrop').classList.add('hidden');
+});
+document.getElementById('btn-save-proj-edit').addEventListener('click', async () => {
+  const editId = Number(document.getElementById('edit-proj-id').value);
+  if (!editId) return;
+  const name = document.getElementById('edit-proj-name').value.trim();
+  const techStack = document.getElementById('edit-proj-stack').value.trim();
+  const url = document.getElementById('edit-proj-url').value.trim();
+  const descriptionPt = document.getElementById('edit-proj-pt').value.trim();
+  const descriptionEn = document.getElementById('edit-proj-en').value.trim();
+  await fetch('/api/profile/projects', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ editId, name, techStack, url, descriptionPt, descriptionEn })
+  });
+  document.getElementById('proj-edit-modal-backdrop').classList.add('hidden');
+  await loadBootstrap();
+  renderProfileModalContent();
+  showToast('Projeto pessoal atualizado com sucesso!');
+});
+
 document.getElementById('btn-add-proj').addEventListener('click', async () => {
   const name = document.getElementById('new-proj-name').value.trim();
   const techStack = document.getElementById('new-proj-stack').value.trim();
+  const url = document.getElementById('new-proj-url').value.trim();
   const descriptionPt = document.getElementById('new-proj-pt').value.trim();
   const descriptionEn = document.getElementById('new-proj-en').value.trim();
   if (!name || !descriptionPt) return;
   await fetch('/api/profile/projects', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ name, techStack, descriptionPt, descriptionEn })
+    body: JSON.stringify({ name, techStack, url, descriptionPt, descriptionEn })
   });
   document.getElementById('new-proj-name').value = '';
   document.getElementById('new-proj-stack').value = '';
+  document.getElementById('new-proj-url').value = '';
   document.getElementById('new-proj-pt').value = '';
   document.getElementById('new-proj-en').value = '';
   await loadBootstrap();

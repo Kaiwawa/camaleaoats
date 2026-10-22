@@ -136,10 +136,16 @@ export function analyzeAndHighlightJob(
   }
 
   for (const [term, w] of Object.entries(weights)) {
-    if (fullLower.includes(term)) {
+    if (term.startsWith('company:')) {
+      const compToken = term.slice('company:'.length);
+      if (compToken && job.company.toLowerCase().includes(compToken) && w < 0) {
+        score += Math.max(-20, w);
+        preferenceAlerts.push(`Alerta: Você possui vaga(s) da empresa "${job.company}" na coluna Vagas Ruins.`);
+      }
+    } else if (fullLower.includes(term)) {
       score += Math.max(-20, Math.min(15, w));
       if (w < 0) {
-        preferenceAlerts.push(`Filtro aprendido: contém termo penalizado pelo seu histórico ("${term}").`);
+        preferenceAlerts.push(`Filtro aprendido: contém condição penalizada em Vagas Ruins ("${term}").`);
       }
     }
   }
@@ -212,6 +218,11 @@ export function generateHonestTailoredCv(
 
     const summary = `DevOps / SRE Engineer (${profile.targetSeniorityEn}) certified in AWS Solutions Architect Associate (SAA-C03), with strong hands-on focus on ${topMatchedNames}. Proven experience in Docker containerization, CI/CD automation with GitHub Actions, GitOps deployments with ArgoCD, and authoring Kubernetes YAML manifests. Fast learner with high adaptability across cloud platforms and infrastructure tooling.`;
 
+    for (const exp of profile.experiences || []) {
+      const header = [exp.role, exp.company, exp.period ? `(${exp.period})` : ''].filter(Boolean).join(' — ');
+      experienceBullets.push(`${header}: ${exp.descriptionEn || exp.descriptionPt}`);
+    }
+
     for (const item of orderedSkills) {
       experienceBullets.push(`${item.name}: ${item.framing}`);
     }
@@ -275,6 +286,11 @@ export function generateHonestTailoredCv(
     : 'AWS (SAA-C03), Docker, GitHub Actions e ArgoCD';
 
   const summaryPt = `Profissional DevOps / SRE (${profile.targetSeniority}) certificado AWS Solutions Architect Associate (SAA-C03), com foco prático em ${topMatchedNamesPt}. Experiência sólida em containerização com Docker, automação de pipelines CI/CD com GitHub Actions, entrega contínua GitOps com ArgoCD e escrita de manifestos YAML para Kubernetes. Perfil altamente adaptável ("camaleão"), com curva de aprendizado rápida para novas clouds e ferramentas de infraestrutura.`;
+
+  for (const exp of profile.experiences || []) {
+    const header = [exp.role, exp.company, exp.period ? `(${exp.period})` : ''].filter(Boolean).join(' — ');
+    experienceBullets.push(`${header}: ${exp.descriptionPt}`);
+  }
 
   for (const item of orderedSkills) {
     experienceBullets.push(`${item.name}: ${item.framing}`);
@@ -480,10 +496,13 @@ export function extractProfileFromCvText(
   rawText: string,
   db: {
     updateProfileInfo: (info: Record<string, unknown>) => Profile;
-    addCertification: (cert: { name: string; issuer?: string; year?: string }) => Profile;
+    addCertification: (cert: { name: string; code?: string; issuer?: string; year?: string }) => Profile;
     addEducation: (edu: { course: string; institution: string; degree: string; status?: string; year?: string }) => Profile;
     clearPlaceholderEducations?: () => void;
-    addPersonalProject: (proj: { name: string; techStack: string[]; descriptionPt: string; descriptionEn?: string }) => Profile;
+    clearPlaceholderExperiences?: () => void;
+    addPersonalProject: (proj: { name: string; techStack: string[]; descriptionPt: string; descriptionEn?: string; url?: string }) => Profile;
+    addLanguage?: (item: { language: string; proficiency: string }) => Profile;
+    addExperience?: (exp: { role: string; company: string; period?: string; descriptionPt: string; descriptionEn?: string }) => Profile;
     upsertSkill: (skill: { name: string; category: string; level: SkillLevel; keywords: string[]; honestFramingPt: string; honestFramingEn: string }) => Profile;
     getProfile: () => Profile;
   }
@@ -530,7 +549,7 @@ export function extractProfileFromCvText(
   }
 
   // Section-aware parsing
-  type SectionType = 'header' | 'summary' | 'education' | 'certifications' | 'skills' | 'projects' | 'experience';
+  type SectionType = 'header' | 'summary' | 'education' | 'certifications' | 'skills' | 'projects' | 'experience' | 'languages';
   let currentSection: SectionType = 'header';
   const sections: Record<SectionType, string[]> = {
     header: [],
@@ -539,7 +558,8 @@ export function extractProfileFromCvText(
     certifications: [],
     skills: [],
     projects: [],
-    experience: []
+    experience: [],
+    languages: []
   };
 
   for (const line of lines) {
@@ -548,7 +568,7 @@ export function extractProfileFromCvText(
       currentSection = 'summary';
       continue;
     }
-    if (/^(forma[çc][ãa]o( acad[êe]mica)?|educa[çc][ãa]o|escolaridade|gradua[çc][ãa]o|academic|education)$/i.test(headerCheck)) {
+    if (/^(forma[çc][ãa]o( acad[êe]mica)?|educa[çc][ãa]o|escolaridade|gradua[çc][ãa]o|academic|education|cursos complementares)$/i.test(headerCheck)) {
       currentSection = 'education';
       continue;
     }
@@ -564,8 +584,12 @@ export function extractProfileFromCvText(
       currentSection = 'projects';
       continue;
     }
-    if (/^(experi[êe]ncia( profissional)?|work experience|experience|hist[óo]rico profissional)$/i.test(headerCheck)) {
+    if (/^(experi[êe]ncia( profissional)?|experi[êe]ncias( profissionais)?|work experience|experience|hist[óo]rico profissional|atua[çc][ãa]o profissional)$/i.test(headerCheck)) {
       currentSection = 'experience';
+      continue;
+    }
+    if (/^(idiomas|l[íi]nguas|languages)$/i.test(headerCheck)) {
+      currentSection = 'languages';
       continue;
     }
 
@@ -662,7 +686,7 @@ export function extractProfileFromCvText(
     }
   }
 
-  // Extract Personal Projects
+  // Extract Personal Projects (including optional URL / Link)
   const projLines = [
     ...sections.projects,
     ...lines.filter((l) => /^(projeto|project|homelab)\s*[:\-]/i.test(l) || /projeto pessoal\s*:/i.test(l))
@@ -670,17 +694,98 @@ export function extractProfileFromCvText(
   for (const pLine of projLines) {
     const cleaned = pLine.replace(/^[-•*]\s*/, '').replace(/^projeto( pessoal)?\s*:\s*/i, '').trim();
     if (cleaned.length < 8) continue;
-    const [rawName, ...rest] = cleaned.split(/\s*:\s*/);
-    const projName = (rest.length > 0 ? rawName : cleaned.slice(0, 55)).trim();
-    const projDesc = (rest.length > 0 ? rest.join(': ') : cleaned).trim();
+    const urlMatch = cleaned.match(/https?:\/\/[^\s)]+|github\.com\/[^\s)]+/i);
+    const extractedUrl = urlMatch ? (urlMatch[0].startsWith('http') ? urlMatch[0] : `https://${urlMatch[0]}`) : '';
+    const withoutUrl = cleaned.replace(/https?:\/\/[^\s)]+|github\.com\/[^\s)]+/gi, '').trim();
+    const [rawName, ...rest] = withoutUrl.split(/\s*:\s*/);
+    const projName = (rest.length > 0 ? rawName : withoutUrl.slice(0, 55)).trim();
+    const projDesc = (rest.length > 0 ? rest.join(': ') : withoutUrl).trim();
     const stackCandidates = ['Docker', 'Kubernetes', 'ArgoCD', 'AWS', 'Terraform', 'Ansible', 'Grafana', 'Prometheus', 'GitHub Actions', 'Linux', 'Kind', 'Python', 'Helm'];
     const detectedStack = stackCandidates.filter((t) => new RegExp(t, 'i').test(cleaned));
     db.addPersonalProject({
       name: projName,
       techStack: detectedStack.length ? detectedStack : ['DevOps', 'Cloud'],
       descriptionPt: projDesc,
-      descriptionEn: projDesc
+      descriptionEn: projDesc,
+      url: extractedUrl
     });
+  }
+
+  // Extract Professional Experience (from experience section)
+  if (sections.experience.length > 0 && db.addExperience) {
+    if (db.clearPlaceholderExperiences) {
+      db.clearPlaceholderExperiences();
+    }
+    let currentRole = '';
+    let currentCompany = '';
+    let currentPeriod = '';
+    let currentDescLines: string[] = [];
+
+    const flushExp = () => {
+      if (currentRole || currentDescLines.length > 0) {
+        const desc = currentDescLines.join(' ').trim() || currentRole;
+        db.addExperience!({
+          role: currentRole || 'DevOps / Cloud Engineer',
+          company: currentCompany || 'Empresa',
+          period: currentPeriod,
+          descriptionPt: desc,
+          descriptionEn: desc
+        });
+      }
+      currentRole = '';
+      currentCompany = '';
+      currentPeriod = '';
+      currentDescLines = [];
+    };
+
+    for (const expLine of sections.experience) {
+      const cleanLine = expLine.replace(/^[-•*]\s*/, '').trim();
+      const hasHeaderSep = /\s+[-–—|@]\s+/.test(cleanLine) && !expLine.startsWith('-') && !expLine.startsWith('•');
+      const periodMatch = cleanLine.match(/\b((?:19|20)\d{2}\s*[-–—a]\s*(?:(?:19|20)\d{2}|atual|presente|present|momento)|\b(?:19|20)\d{2}\b)/i);
+
+      if (hasHeaderSep && cleanLine.length <= 110) {
+        flushExp();
+        const withoutPeriod = periodMatch ? cleanLine.replace(periodMatch[0], '').replace(/\(\s*\)/g, '').trim() : cleanLine;
+        const parts = withoutPeriod.split(/\s+[-–—|@]\s+/).map((p) => p.trim()).filter(Boolean);
+        currentRole = parts[0] || 'DevOps Engineer';
+        currentCompany = parts[1] || 'Empresa';
+        currentPeriod = periodMatch ? periodMatch[1] : (parts[2] || '');
+      } else {
+        currentDescLines.push(cleanLine);
+      }
+    }
+    flushExp();
+  }
+
+  // Extract Languages (from languages section + inline patterns)
+  if (db.addLanguage) {
+    const langLines = [
+      ...sections.languages,
+      ...lines.filter((l) => /\b(portugu[êe]s|ingl[êe]s|english|espanhol|spanish)\s*[:\-–(]/i.test(l))
+    ];
+    const knownLangs = [
+      { rx: /\b(portugu[êe]s|portuguese)\b/i, name: 'Português' },
+      { rx: /\b(ingl[êe]s|english)\b/i, name: 'Inglês' },
+      { rx: /\b(espanhol|spanish)\b/i, name: 'Espanhol' },
+      { rx: /\b(franc[êe]s|french)\b/i, name: 'Francês' },
+      { rx: /\b(alem[ãa]o|german)\b/i, name: 'Alemão' }
+    ];
+    for (const ll of langLines) {
+      for (const kl of knownLangs) {
+        if (kl.rx.test(ll)) {
+          const prof = /nativo|fluente|fluent|native|c1|c2/i.test(ll)
+            ? 'Nativo / Fluente'
+            : /avan[çc]ado|advanced|b2/i.test(ll)
+            ? 'Avançado'
+            : /t[ée]cnico|leitura|technical/i.test(ll)
+            ? 'Intermediário / Técnico'
+            : /b[áa]sico|basic|a1|a2/i.test(ll)
+            ? 'Básico'
+            : 'Intermediário';
+          db.addLanguage({ language: kl.name, proficiency: prof });
+        }
+      }
+    }
   }
 
   // Extract Skills from comprehensive catalog

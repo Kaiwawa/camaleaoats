@@ -327,10 +327,10 @@ html[data-theme="light"] .toast-popup {
   display: none !important;
 }
 
-/* Kanban Board + Frosted Glass Transparency/Blur + Drag & Drop */
+/* Kanban Board: Wider "Vagas Abertas" (1.5fr) & "Em Processo" (1.5fr) + Stacked "Sem Sucesso" / "Vagas Ruins" (1fr) */
 .kanban-board {
   display: grid;
-  grid-template-columns: repeat(4, minmax(260px, 1fr));
+  grid-template-columns: minmax(320px, 1.5fr) minmax(320px, 1.5fr) minmax(260px, 1fr);
   gap: 16px;
   padding: 18px 24px;
   height: calc(100vh - 68px);
@@ -338,6 +338,20 @@ html[data-theme="light"] .toast-popup {
   background: rgba(15, 23, 42, 0.28);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
+}
+
+.kanban-col-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.kanban-col-stack > .kanban-col {
+  flex: 1;
+  min-height: 0;
 }
 
 html[data-theme="light"] .kanban-board {
@@ -904,12 +918,21 @@ select {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 10px;
+  align-items: end;
 }
 
 .form-grid-3 {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
+  align-items: end;
+}
+
+.form-grid-2 > div,
+.form-grid-3 > div {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
 }
 
 .skills-list,

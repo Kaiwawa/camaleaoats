@@ -60,11 +60,7 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
 
       if (method === 'GET' && pathname === '/api/bootstrap') {
         db.deleteDemoJobs();
-        let jobs = db.listJobs();
-        if (jobs.length === 0 && !customDb) {
-          await collectRemoteDevOpsJobs(db);
-          jobs = db.listJobs();
-        }
+        const jobs = db.listJobs();
         return sendJson(res, 200, {
           profile: db.getProfile(),
           jobs,
@@ -152,8 +148,9 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
         const status = String(body.status) as KanbanStatus;
         const reason = String(body.reason ?? '');
         const updated = db.moveJob(jobId, status, reason);
+        rescoreAllJobs();
         return sendJson(res, 200, {
-          job: updated,
+          job: db.getJob(jobId) ?? updated,
           preferenceWeights: db.getPreferenceWeights()
         });
       }
@@ -213,6 +210,14 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
         const body = await readJsonBody(req);
         if (body.deleteId) {
           db.deleteCertification(Number(body.deleteId));
+        } else if (body.editId) {
+          db.updateCertification(Number(body.editId), {
+            name: body.name !== undefined ? String(body.name) : undefined,
+            code: body.code !== undefined ? String(body.code) : undefined,
+            issuer: body.issuer !== undefined ? String(body.issuer) : undefined,
+            year: body.year !== undefined ? String(body.year).replace(/\D/g, '').slice(0, 4) : undefined,
+            credentialUrl: body.credentialUrl !== undefined ? String(body.credentialUrl) : undefined
+          });
         } else if (body.name) {
           db.addCertification({
             name: String(body.name),
@@ -229,6 +234,14 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
         const body = await readJsonBody(req);
         if (body.deleteId) {
           db.deleteEducation(Number(body.deleteId));
+        } else if (body.editId) {
+          db.updateEducation(Number(body.editId), {
+            course: body.course !== undefined ? String(body.course) : undefined,
+            institution: body.institution !== undefined ? String(body.institution) : undefined,
+            degree: body.degree !== undefined ? String(body.degree) : undefined,
+            status: body.status !== undefined ? String(body.status) : undefined,
+            year: body.year !== undefined ? String(body.year).replace(/\D/g, '').slice(0, 4) : undefined
+          });
         } else if (body.course) {
           db.addEducation({
             course: String(body.course),
@@ -245,6 +258,23 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
         const body = await readJsonBody(req);
         if (body.deleteId) {
           db.deletePersonalProject(Number(body.deleteId));
+        } else if (body.editId) {
+          const stack =
+            body.techStack !== undefined
+              ? Array.isArray(body.techStack)
+                ? body.techStack.map(String)
+                : String(body.techStack)
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+              : undefined;
+          db.updatePersonalProject(Number(body.editId), {
+            name: body.name !== undefined ? String(body.name) : undefined,
+            techStack: stack,
+            descriptionPt: body.descriptionPt !== undefined ? String(body.descriptionPt) : undefined,
+            descriptionEn: body.descriptionEn !== undefined ? String(body.descriptionEn) : undefined,
+            url: body.url !== undefined ? String(body.url) : undefined
+          });
         } else if (body.name) {
           const stack = Array.isArray(body.techStack)
             ? body.techStack.map(String)
@@ -260,6 +290,44 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
             url: String(body.url ?? '')
           });
         }
+        return sendJson(res, 200, { profile: db.getProfile() });
+      }
+
+      if (method === 'POST' && pathname === '/api/profile/languages') {
+        const body = await readJsonBody(req);
+        if (body.deleteId) {
+          db.deleteLanguage(Number(body.deleteId));
+        } else if (body.language) {
+          db.addLanguage({
+            language: String(body.language),
+            proficiency: String(body.proficiency ?? 'Intermediário')
+          });
+        }
+        return sendJson(res, 200, { profile: db.getProfile() });
+      }
+
+      if (method === 'POST' && pathname === '/api/profile/experiences') {
+        const body = await readJsonBody(req);
+        if (body.deleteId) {
+          db.deleteExperience(Number(body.deleteId));
+        } else if (body.editId) {
+          db.updateExperience(Number(body.editId), {
+            role: body.role !== undefined ? String(body.role) : undefined,
+            company: body.company !== undefined ? String(body.company) : undefined,
+            period: body.period !== undefined ? String(body.period) : undefined,
+            descriptionPt: body.descriptionPt !== undefined ? String(body.descriptionPt) : undefined,
+            descriptionEn: body.descriptionEn !== undefined ? String(body.descriptionEn) : undefined
+          });
+        } else if (body.role && body.company) {
+          db.addExperience({
+            role: String(body.role),
+            company: String(body.company),
+            period: String(body.period ?? ''),
+            descriptionPt: String(body.descriptionPt ?? ''),
+            descriptionEn: String(body.descriptionEn || body.descriptionPt || '')
+          });
+        }
+        rescoreAllJobs();
         return sendJson(res, 200, { profile: db.getProfile() });
       }
 
@@ -291,7 +359,11 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
         }
 
         if (body.profileInfo && typeof body.profileInfo === 'object') {
-          db.updateProfileInfo(body.profileInfo as Record<string, string>);
+          const info = body.profileInfo as Record<string, string>;
+          if (info.titlePt && !info.titleEn) {
+            info.titleEn = info.titlePt;
+          }
+          db.updateProfileInfo(info);
         }
 
         rescoreAllJobs();

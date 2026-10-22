@@ -43,6 +43,21 @@ export interface PersonalProject {
   url?: string;
 }
 
+export interface LanguageItem {
+  id: number;
+  language: string;
+  proficiency: string;
+}
+
+export interface ExperienceItem {
+  id: number;
+  role: string;
+  company: string;
+  period: string;
+  descriptionPt: string;
+  descriptionEn: string;
+}
+
 export interface Profile {
   id: number;
   name: string;
@@ -60,6 +75,8 @@ export interface Profile {
   certificationItems: CertificationItem[];
   educations: EducationItem[];
   personalProjects: PersonalProject[];
+  languages: LanguageItem[];
+  experiences: ExperienceItem[];
   targetSeniority: string;
   targetSeniorityEn: string;
   skills: Skill[];

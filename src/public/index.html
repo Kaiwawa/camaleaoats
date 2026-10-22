@@ -16,7 +16,7 @@
       <div class="filter-group">
         <label for="filter-seniority">Senioridade:</label>
         <select id="filter-seniority" class="select-compact">
-          <option value="all">Todas (Auto pelo Perfil)</option>
+          <option value="all">Todas</option>
           <option value="estagio">Estágio / Trainee</option>
           <option value="junior">Júnior</option>
           <option value="junior_pleno">Júnior / Pleno</option>
@@ -58,9 +58,9 @@
     <div class="toast-popup-text" id="toast-banner-text">Notificação</div>
   </div>
 
-  <!-- 4-Column Kanban Board with Native Drag and Drop -->
+  <!-- Kanban Board: Wider "Vagas Abertas" & "Em Processo" + Stacked "Sem Sucesso" (top) over "Vagas Ruins" (bottom) -->
   <main class="kanban-board">
-    <section class="kanban-col" data-status="abertas">
+    <section class="kanban-col kanban-col-wide" data-status="abertas">
       <div class="kanban-col-header">
         <span>📥 Vagas Abertas</span>
         <span class="count-badge" id="count-abertas">0</span>
@@ -68,7 +68,7 @@
       <div class="kanban-cards" id="col-abertas" data-drop-status="abertas"></div>
     </section>
 
-    <section class="kanban-col" data-status="em_processo">
+    <section class="kanban-col kanban-col-wide" data-status="em_processo">
       <div class="kanban-col-header">
         <span>⏳ Em Processo</span>
         <span class="count-badge" id="count-em_processo">0</span>
@@ -76,21 +76,23 @@
       <div class="kanban-cards" id="col-em_processo" data-drop-status="em_processo"></div>
     </section>
 
-    <section class="kanban-col" data-status="sem_sucesso">
-      <div class="kanban-col-header">
-        <span>❌ Sem Sucesso</span>
-        <span class="count-badge" id="count-sem_sucesso">0</span>
-      </div>
-      <div class="kanban-cards" id="col-sem_sucesso" data-drop-status="sem_sucesso"></div>
-    </section>
+    <div class="kanban-col-stack">
+      <section class="kanban-col" data-status="sem_sucesso">
+        <div class="kanban-col-header">
+          <span>❌ Sem Sucesso</span>
+          <span class="count-badge" id="count-sem_sucesso">0</span>
+        </div>
+        <div class="kanban-cards" id="col-sem_sucesso" data-drop-status="sem_sucesso"></div>
+      </section>
 
-    <section class="kanban-col kanban-col-bad" data-status="ruins">
-      <div class="kanban-col-header">
-        <span>🗑️ Vagas Ruins (Filtro)</span>
-        <span class="count-badge" id="count-ruins">0</span>
-      </div>
-      <div class="kanban-cards" id="col-ruins" data-drop-status="ruins"></div>
-    </section>
+      <section class="kanban-col kanban-col-bad" data-status="ruins">
+        <div class="kanban-col-header">
+          <span>🗑️ Vagas Ruins (Filtro)</span>
+          <span class="count-badge" id="count-ruins">0</span>
+        </div>
+        <div class="kanban-cards" id="col-ruins" data-drop-status="ruins"></div>
+      </section>
+    </div>
   </main>
 
   <!-- POPUP 1: Clean, Responsive Job Detail Modal (Same Page Over Kanban) -->
@@ -281,16 +283,17 @@
           </div>
         </div>
 
-        <!-- 5 Dedicated Profile Tabs -->
+        <!-- 6 Dedicated Profile Tabs -->
         <div class="subtabs profile-tabs">
           <button type="button" class="subtab profile-tab active" data-ptab="ptab-dados">1. Dados Pessoais</button>
-          <button type="button" class="subtab profile-tab" data-ptab="ptab-skills">2. Habilidades & Tecnologias</button>
-          <button type="button" class="subtab profile-tab" data-ptab="ptab-certs">3. Certificações</button>
-          <button type="button" class="subtab profile-tab" data-ptab="ptab-edu">4. Ensino / Graduações</button>
-          <button type="button" class="subtab profile-tab" data-ptab="ptab-projects">5. Projetos Pessoais</button>
+          <button type="button" class="subtab profile-tab" data-ptab="ptab-exp">2. Experiência Profissional</button>
+          <button type="button" class="subtab profile-tab" data-ptab="ptab-skills">3. Habilidades & Tecnologias</button>
+          <button type="button" class="subtab profile-tab" data-ptab="ptab-certs">4. Certificações</button>
+          <button type="button" class="subtab profile-tab" data-ptab="ptab-edu">5. Ensino / Graduações</button>
+          <button type="button" class="subtab profile-tab" data-ptab="ptab-projects">6. Projetos Pessoais</button>
         </div>
 
-        <!-- Profile Tab 1: Personal Data (With Input Masks & Validation) -->
+        <!-- Profile Tab 1: Personal Data + Languages -->
         <div id="ptab-dados" class="ptab-panel">
           <div class="form-grid-2">
             <div>
@@ -314,20 +317,77 @@
               <input type="url" id="prof-github" placeholder="https://github.com/seu-usuario" />
             </div>
             <div>
-              <label>Título Profissional Base (PT-BR)</label>
+              <label>Título Profissional</label>
               <input type="text" id="prof-title-pt" placeholder="DevOps Engineer | Cloud & Containers" />
             </div>
-            <div style="grid-column: 1 / -1;">
-              <label>Título Profissional Base (EN)</label>
-              <input type="text" id="prof-title-en" placeholder="DevOps Engineer | Cloud & Containers" />
-            </div>
           </div>
-          <div style="margin-top: 12px;">
-            <button type="button" class="btn btn-primary" id="btn-save-profile-info">💾 Salvar Dados Pessoais</button>
+          <div style="margin-top: 12px; display: flex; justify-content: flex-end;">
+            <button type="button" class="btn btn-primary btn-sm" id="btn-save-profile-info">💾 Salvar Dados Pessoais</button>
+          </div>
+
+          <div class="add-item-card" style="margin-top: 16px;">
+            <h4>🌐 Línguas / Idiomas</h4>
+            <div id="langs-list" class="items-list"></div>
+            <div class="form-grid-2" style="margin-top: 8px;">
+              <div>
+                <label>Idioma</label>
+                <input type="text" id="new-lang-name" placeholder="Ex: Inglês, Espanhol, Português..." />
+              </div>
+              <div>
+                <label>Nível de Proficiência</label>
+                <select id="new-lang-prof">
+                  <option value="Básico">Básico</option>
+                  <option value="Intermediário / Leitura Técnica" selected>Intermediário / Leitura Técnica</option>
+                  <option value="Intermediário">Intermediário (Conversação)</option>
+                  <option value="Avançado">Avançado</option>
+                  <option value="Nativo / Fluente">Nativo / Fluente</option>
+                </select>
+              </div>
+            </div>
+            <div style="display: flex; justify-content: flex-end; margin-top: 10px;">
+              <button type="button" class="btn btn-primary btn-sm" id="btn-add-lang">+ Adicionar Idioma</button>
+            </div>
           </div>
         </div>
 
-        <!-- Profile Tab 2: Skills & Software (WITH Seniority / Familiarity Level) -->
+        <!-- Profile Tab 2: Professional Experience -->
+        <div id="ptab-exp" class="ptab-panel hidden">
+          <p class="section-hint">Cadastre suas experiências profissionais anteriores ou atuais (elas também são extraídas automaticamente do seu CV).</p>
+          <div id="exp-list" class="items-list"></div>
+
+          <div class="add-item-card">
+            <h4>+ Adicionar Experiência Profissional</h4>
+            <div class="form-grid-3">
+              <div>
+                <label>Cargo / Função</label>
+                <input type="text" id="new-exp-role" placeholder="Ex: DevOps Engineer, Analista Cloud..." />
+              </div>
+              <div>
+                <label>Empresa</label>
+                <input type="text" id="new-exp-company" placeholder="Ex: Nome da Empresa" />
+              </div>
+              <div>
+                <label>Período</label>
+                <input type="text" id="new-exp-period" placeholder="Ex: 2023 - Atual" />
+              </div>
+            </div>
+            <div class="form-grid-2" style="margin-top: 8px;">
+              <div>
+                <label>Como descrever em PT-BR no CV</label>
+                <input type="text" id="new-exp-pt" placeholder="Principais atividades e resultados em PT-BR..." />
+              </div>
+              <div>
+                <label>Como descrever em Inglês no CV</label>
+                <input type="text" id="new-exp-en" placeholder="Key responsibilities and achievements in English..." />
+              </div>
+            </div>
+            <div style="display: flex; justify-content: flex-end; margin-top: 10px;">
+              <button type="button" class="btn btn-primary btn-sm" id="btn-add-exp">+ Adicionar Experiência</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Profile Tab 3: Skills & Software (WITH Seniority / Familiarity Level) -->
         <div id="ptab-skills" class="ptab-panel hidden">
           <p class="section-hint">Aqui ficam suas ferramentas, linguagens e tecnologias com o respectivo <strong>nível de familiaridade/senioridade</strong>.</p>
           <div id="skills-evolution-list" class="skills-list"></div>
@@ -335,23 +395,40 @@
           <div class="add-item-card">
             <h4>+ Adicionar Habilidade / Tecnologia</h4>
             <div class="form-grid-3">
-              <input type="text" id="new-skill-name" placeholder="Tecnologia (Ex: Docker, Kubernetes, Helm...)" />
-              <input type="text" id="new-skill-cat" placeholder="Categoria (Ex: Cloud, CI/CD, IaC)" />
-              <select id="new-skill-level">
-                <option value="evolving">🟡 Iniciante / Em Evolução</option>
-                <option value="practical">🟢 Prático / Autônomo</option>
-                <option value="solid">🔥 Sólido / Avançado</option>
-              </select>
+              <div>
+                <label>Tecnologia / Habilidade</label>
+                <input type="text" id="new-skill-name" placeholder="Ex: Docker, Kubernetes, Helm..." />
+              </div>
+              <div>
+                <label>Categoria</label>
+                <input type="text" id="new-skill-cat" placeholder="Ex: Cloud, CI/CD, IaC" />
+              </div>
+              <div>
+                <label>Nível de Familiaridade</label>
+                <select id="new-skill-level">
+                  <option value="evolving">🟡 Iniciante / Em Evolução</option>
+                  <option value="practical">🟢 Prático / Autônomo</option>
+                  <option value="solid">🔥 Sólido / Avançado</option>
+                </select>
+              </div>
             </div>
             <div class="form-grid-2" style="margin-top: 8px;">
-              <input type="text" id="new-skill-pt" placeholder="Como descrever em PT-BR no CV (sem alucinar)" />
-              <input type="text" id="new-skill-en" placeholder="Como descrever em Inglês no CV" />
+              <div>
+                <label>Como descrever em PT-BR no CV</label>
+                <input type="text" id="new-skill-pt" placeholder="Como descrever em PT-BR no CV" />
+              </div>
+              <div>
+                <label>Como descrever em Inglês no CV</label>
+                <input type="text" id="new-skill-en" placeholder="Como descrever em Inglês no CV" />
+              </div>
             </div>
-            <button type="button" class="btn btn-primary btn-sm" id="btn-add-skill" style="margin-top: 8px;">+ Adicionar Habilidade</button>
+            <div style="display: flex; justify-content: flex-end; margin-top: 10px;">
+              <button type="button" class="btn btn-primary btn-sm" id="btn-add-skill">+ Adicionar Habilidade</button>
+            </div>
           </div>
         </div>
 
-        <!-- Profile Tab 3: Certifications (NO Seniority Level — Name + Code + Issuer + Expiration Year) -->
+        <!-- Profile Tab 4: Certifications (NO Seniority Level — Name + Code + Issuer + Expiration Year) -->
         <div id="ptab-certs" class="ptab-panel hidden">
           <p class="section-hint">Certificações oficiais não possuem nível de senioridade — informe o Nome, Código da Certificação, Organização Emissora e Ano de Vencimento.</p>
           <div id="certs-list" class="items-list"></div>
@@ -359,70 +436,120 @@
           <div class="add-item-card">
             <h4>+ Adicionar Certificação</h4>
             <div class="form-grid-2">
-              <input type="text" id="new-cert-name" placeholder="Nome da Certificação (Ex: AWS Certified Solutions Architect)" />
-              <input type="text" id="new-cert-code" placeholder="Código da Certificação (Ex: SAA-C03, CKA, AZ-104)" />
+              <div>
+                <label>Nome da Certificação</label>
+                <input type="text" id="new-cert-name" placeholder="Ex: AWS Certified Solutions Architect" />
+              </div>
+              <div>
+                <label>Código da Certificação</label>
+                <input type="text" id="new-cert-code" placeholder="Ex: SAA-C03, CKA, AZ-104" />
+              </div>
             </div>
             <div class="form-grid-2" style="margin-top: 8px;">
-              <input type="text" id="new-cert-issuer" placeholder="Emissor (Ex: AWS, CNCF, HashiCorp)" />
-              <input type="text" id="new-cert-year" inputmode="numeric" maxlength="4" pattern="\d{4}" placeholder="Ano de Vencimento (Somente ano, Ex: 2028)" />
+              <div>
+                <label>Emissor</label>
+                <input type="text" id="new-cert-issuer" placeholder="Ex: AWS, CNCF, HashiCorp" />
+              </div>
+              <div>
+                <label>Ano de Vencimento</label>
+                <input type="text" id="new-cert-year" inputmode="numeric" maxlength="4" pattern="\d{4}" placeholder="Somente ano (Ex: 2028)" />
+              </div>
             </div>
-            <button type="button" class="btn btn-primary btn-sm" id="btn-add-cert" style="margin-top: 8px;">+ Adicionar Certificação</button>
+            <div style="display: flex; justify-content: flex-end; margin-top: 10px;">
+              <button type="button" class="btn btn-primary btn-sm" id="btn-add-cert">+ Adicionar Certificação</button>
+            </div>
           </div>
         </div>
 
-        <!-- Profile Tab 4: Education / Degrees (Faculdade, Pós, Técnico) -->
+        <!-- Profile Tab 5: Education / Degrees (Faculdade, Pós, Técnico, Curso) -->
         <div id="ptab-edu" class="ptab-panel hidden">
-          <p class="section-hint">Cadastre suas graduações, pós-graduações, MBA ou cursos técnicos.</p>
+          <p class="section-hint">Cadastre suas graduações, pós-graduações, MBA, ensino técnico ou cursos.</p>
           <div id="edu-list" class="items-list"></div>
 
           <div class="add-item-card">
-            <h4>+ Adicionar Formação / Graduação</h4>
+            <h4>+ Adicionar Formação / Graduação / Curso</h4>
             <div class="form-grid-2">
-              <input type="text" id="new-edu-course" placeholder="Curso (Ex: Análise e Desenvolvimento de Sistemas, Redes...)" />
-              <input type="text" id="new-edu-inst" placeholder="Instituição / Faculdade (Ex: FIAP, USP, PUC...)" />
+              <div>
+                <label>Curso / Formação</label>
+                <input type="text" id="new-edu-course" placeholder="Ex: Análise e Desenvolvimento de Sistemas, Redes..." />
+              </div>
+              <div>
+                <label>Instituição / Escola</label>
+                <input type="text" id="new-edu-inst" placeholder="Ex: FIAP, USP, PUC, LinuxTips..." />
+              </div>
             </div>
             <div class="form-grid-3" style="margin-top: 8px;">
-              <select id="new-edu-degree">
-                <option value="Tecnólogo">Tecnólogo (Graduação)</option>
-                <option value="Bacharelado">Bacharelado (Graduação)</option>
-                <option value="Pós-Graduação / MBA">Pós-Graduação / Especialização / MBA</option>
-                <option value="Mestrado / Doutorado">Mestrado / Doutorado</option>
-                <option value="Ensino Técnico">Ensino Técnico</option>
-              </select>
-              <select id="new-edu-status">
-                <option value="Concluído">Concluído</option>
-                <option value="Cursando">Cursando</option>
-                <option value="Trancado">Incompleto / Trancado</option>
-              </select>
-              <input type="text" id="new-edu-year" inputmode="numeric" maxlength="4" placeholder="Ano (Ex: 2025)" />
+              <div>
+                <label>Tipo / Grau</label>
+                <select id="new-edu-degree">
+                  <option value="Tecnólogo">Tecnólogo (Graduação)</option>
+                  <option value="Bacharelado">Bacharelado (Graduação)</option>
+                  <option value="Pós-Graduação / MBA">Pós-Graduação / Especialização / MBA</option>
+                  <option value="Mestrado / Doutorado">Mestrado / Doutorado</option>
+                  <option value="Ensino Técnico">Ensino Técnico</option>
+                  <option value="Curso">Curso</option>
+                </select>
+              </div>
+              <div>
+                <label>Status</label>
+                <select id="new-edu-status">
+                  <option value="Concluído">Concluído</option>
+                  <option value="Cursando">Cursando</option>
+                  <option value="Trancado">Incompleto / Trancado</option>
+                </select>
+              </div>
+              <div>
+                <label>Ano de Conclusão / Previsão</label>
+                <input type="text" id="new-edu-year" inputmode="numeric" maxlength="4" placeholder="Ano (Ex: 2025)" />
+              </div>
             </div>
-            <button type="button" class="btn btn-primary btn-sm" id="btn-add-edu" style="margin-top: 8px;">+ Adicionar Formação</button>
+            <div style="display: flex; justify-content: flex-end; margin-top: 10px;">
+              <button type="button" class="btn btn-primary btn-sm" id="btn-add-edu">+ Adicionar Formação</button>
+            </div>
           </div>
         </div>
 
-        <!-- Profile Tab 5: Personal Projects (Included conditionally per job) -->
+        <!-- Profile Tab 6: Personal Projects (Included conditionally per job + Link) -->
         <div id="ptab-projects" class="ptab-panel hidden">
           <p class="section-hint">Projetos pessoais e de homelab são <strong>incluídos automaticamente no seu CV apenas quando as tecnologias do projeto baterem com o que a vaga pede</strong>.</p>
           <div id="projects-list" class="items-list"></div>
 
           <div class="add-item-card">
             <h4>+ Adicionar Projeto Pessoal / Homelab</h4>
-            <div class="form-grid-2">
-              <input type="text" id="new-proj-name" placeholder="Nome do Projeto (Ex: Cluster Kubernetes GitOps com ArgoCD)" />
-              <input type="text" id="new-proj-stack" placeholder="Tecnologias separadas por vírgula (Ex: Kubernetes, ArgoCD, Docker, Terraform)" />
+            <div class="form-grid-3">
+              <div>
+                <label>Nome do Projeto</label>
+                <input type="text" id="new-proj-name" placeholder="Ex: Cluster Kubernetes GitOps com ArgoCD" />
+              </div>
+              <div>
+                <label>Tecnologias (separadas por vírgula)</label>
+                <input type="text" id="new-proj-stack" placeholder="Ex: Kubernetes, ArgoCD, Docker, Terraform" />
+              </div>
+              <div>
+                <label>Link do Projeto / Repositório</label>
+                <input type="url" id="new-proj-url" placeholder="https://github.com/seu-usuario/projeto" />
+              </div>
             </div>
             <div class="form-grid-2" style="margin-top: 8px;">
-              <input type="text" id="new-proj-pt" placeholder="Descrição técnica em PT-BR para o CV" />
-              <input type="text" id="new-proj-en" placeholder="Descrição técnica em Inglês para o CV" />
+              <div>
+                <label>Como descrever em PT-BR no CV</label>
+                <input type="text" id="new-proj-pt" placeholder="Descrição técnica em PT-BR para o CV" />
+              </div>
+              <div>
+                <label>Como descrever em Inglês no CV</label>
+                <input type="text" id="new-proj-en" placeholder="Descrição técnica em Inglês para o CV" />
+              </div>
             </div>
-            <button type="button" class="btn btn-primary btn-sm" id="btn-add-proj" style="margin-top: 8px;">+ Adicionar Projeto Pessoal</button>
+            <div style="display: flex; justify-content: flex-end; margin-top: 10px;">
+              <button type="button" class="btn btn-primary btn-sm" id="btn-add-proj">+ Adicionar Projeto Pessoal</button>
+            </div>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- POPUP 3: Modal "⚙️ Configurações" (API Keys + Editable Agent .MD Prompts) -->
+  <!-- POPUP 3: Modal "⚙️ Configurações" (API Keys + Editable Agent .MD Prompts — Theme switch removed from here) -->
   <div id="settings-modal-backdrop" class="modal-backdrop hidden">
     <div class="modal-window modal-window-lg">
       <div class="modal-header">
@@ -434,18 +561,6 @@
       </div>
 
       <div class="modal-content-padded">
-        <div class="card-block" style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
-          <div>
-            <h4 style="margin-bottom: 4px;">🌓 Tema Visual (Modo Dia & Noite)</h4>
-            <p class="section-hint" style="margin: 0;">Ao abrir o site, o tema inicia automaticamente de acordo com o modo atual do seu navegador. Use a chave ao lado para alternar entre Claro (Dia) e Escuro (Noite).</p>
-          </div>
-          <button type="button" class="day-night-switch" id="btn-theme-toggle-settings" role="switch" aria-checked="true" title="Alternar Modo Claro (Dia) / Escuro (Noite)">
-            <span class="dn-track-decor dn-clouds">☁️ ⛅</span>
-            <span class="dn-track-decor dn-stars">✨ ⭐</span>
-            <span class="dn-thumb"><span class="dn-thumb-icon">🌙</span></span>
-          </button>
-        </div>
-
         <div class="card-block" style="margin-bottom: 16px;">
           <h4>🔑 Provedor de Inteligência Artificial & API Key</h4>
           <div class="form-grid-2" style="margin-top: 8px;">
@@ -572,7 +687,7 @@
           </div>
           <div class="form-grid-2" style="margin-top: 10px;">
             <div>
-              <label>Como descrever em PT-BR no CV (sem alucinar)</label>
+              <label>Como descrever em PT-BR no CV</label>
               <input type="text" id="edit-skill-pt" placeholder="Descrição técnica em Português..." />
             </div>
             <div>
@@ -583,6 +698,243 @@
           <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
             <button type="button" class="btn btn-secondary btn-sm" id="btn-cancel-skill-edit">Cancelar</button>
             <button type="button" class="btn btn-primary btn-sm" id="btn-save-skill-edit">💾 Salvar Alterações</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- POPUP 6: Mini Popup para Editar Certificação (Aberto pelo ícone de lápis ✏️) -->
+  <div id="cert-edit-modal-backdrop" class="modal-backdrop hidden" style="z-index: 1500;">
+    <div class="modal-window modal-window-sm">
+      <div class="modal-header">
+        <div>
+          <h2>✏️ Editar Certificação</h2>
+          <p class="modal-subtitle">Altere o nome, código, emissor ou ano de vencimento da certificação.</p>
+        </div>
+        <button type="button" class="btn-close" id="btn-close-cert-edit-modal">✕</button>
+      </div>
+      <div class="modal-content-padded">
+        <input type="hidden" id="edit-cert-id" />
+        <div class="add-item-card" style="margin: 0;">
+          <div class="form-grid-2">
+            <div>
+              <label>Nome da Certificação</label>
+              <input type="text" id="edit-cert-name" placeholder="Ex: AWS Certified Solutions Architect" />
+            </div>
+            <div>
+              <label>Código da Certificação</label>
+              <input type="text" id="edit-cert-code" placeholder="Ex: SAA-C03, CKA, AZ-104" />
+            </div>
+          </div>
+          <div class="form-grid-2" style="margin-top: 10px;">
+            <div>
+              <label>Emissor</label>
+              <input type="text" id="edit-cert-issuer" placeholder="Ex: AWS, CNCF, HashiCorp" />
+            </div>
+            <div>
+              <label>Ano de Vencimento</label>
+              <input type="text" id="edit-cert-year" inputmode="numeric" maxlength="4" pattern="\d{4}" placeholder="Somente ano (Ex: 2028)" />
+            </div>
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-cancel-cert-edit">Cancelar</button>
+            <button type="button" class="btn btn-primary btn-sm" id="btn-save-cert-edit">💾 Salvar Alterações</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- POPUP 7: Mini Popup para Editar Ensino / Graduação / Curso (Aberto pelo ícone de lápis ✏️) -->
+  <div id="edu-edit-modal-backdrop" class="modal-backdrop hidden" style="z-index: 1500;">
+    <div class="modal-window modal-window-sm">
+      <div class="modal-header">
+        <div>
+          <h2>✏️ Editar Formação / Graduação / Curso</h2>
+          <p class="modal-subtitle">Altere o curso, instituição, tipo/grau, status ou ano.</p>
+        </div>
+        <button type="button" class="btn-close" id="btn-close-edu-edit-modal">✕</button>
+      </div>
+      <div class="modal-content-padded">
+        <input type="hidden" id="edit-edu-id" />
+        <div class="add-item-card" style="margin: 0;">
+          <div class="form-grid-2">
+            <div>
+              <label>Curso / Formação</label>
+              <input type="text" id="edit-edu-course" placeholder="Ex: Análise e Desenvolvimento de Sistemas" />
+            </div>
+            <div>
+              <label>Instituição / Escola</label>
+              <input type="text" id="edit-edu-inst" placeholder="Ex: FIAP, USP, PUC..." />
+            </div>
+          </div>
+          <div class="form-grid-3" style="margin-top: 10px;">
+            <div>
+              <label>Tipo / Grau</label>
+              <select id="edit-edu-degree">
+                <option value="Tecnólogo">Tecnólogo (Graduação)</option>
+                <option value="Bacharelado">Bacharelado (Graduação)</option>
+                <option value="Pós-Graduação / MBA">Pós-Graduação / Especialização / MBA</option>
+                <option value="Mestrado / Doutorado">Mestrado / Doutorado</option>
+                <option value="Ensino Técnico">Ensino Técnico</option>
+                <option value="Curso">Curso</option>
+              </select>
+            </div>
+            <div>
+              <label>Status</label>
+              <select id="edit-edu-status">
+                <option value="Concluído">Concluído</option>
+                <option value="Cursando">Cursando</option>
+                <option value="Trancado">Incompleto / Trancado</option>
+              </select>
+            </div>
+            <div>
+              <label>Ano</label>
+              <input type="text" id="edit-edu-year" inputmode="numeric" maxlength="4" placeholder="Ex: 2025" />
+            </div>
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-cancel-edu-edit">Cancelar</button>
+            <button type="button" class="btn btn-primary btn-sm" id="btn-save-edu-edit">💾 Salvar Alterações</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- POPUP 8: Mini Popup para Editar Projeto Pessoal (Aberto pelo ícone de lápis ✏️) -->
+  <div id="proj-edit-modal-backdrop" class="modal-backdrop hidden" style="z-index: 1500;">
+    <div class="modal-window modal-window-sm">
+      <div class="modal-header">
+        <div>
+          <h2>✏️ Editar Projeto Pessoal</h2>
+          <p class="modal-subtitle">Altere o nome, tecnologias, link ou descrição do projeto.</p>
+        </div>
+        <button type="button" class="btn-close" id="btn-close-proj-edit-modal">✕</button>
+      </div>
+      <div class="modal-content-padded">
+        <input type="hidden" id="edit-proj-id" />
+        <div class="add-item-card" style="margin: 0;">
+          <div class="form-grid-3">
+            <div>
+              <label>Nome do Projeto</label>
+              <input type="text" id="edit-proj-name" />
+            </div>
+            <div>
+              <label>Tecnologias (separadas por vírgula)</label>
+              <input type="text" id="edit-proj-stack" />
+            </div>
+            <div>
+              <label>Link do Projeto / Repositório</label>
+              <input type="url" id="edit-proj-url" placeholder="https://github.com/..." />
+            </div>
+          </div>
+          <div class="form-grid-2" style="margin-top: 10px;">
+            <div>
+              <label>Como descrever em PT-BR no CV</label>
+              <input type="text" id="edit-proj-pt" />
+            </div>
+            <div>
+              <label>Como descrever em Inglês no CV</label>
+              <input type="text" id="edit-proj-en" />
+            </div>
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-cancel-proj-edit">Cancelar</button>
+            <button type="button" class="btn btn-primary btn-sm" id="btn-save-proj-edit">💾 Salvar Alterações</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- POPUP 9: Mini Popup para Editar Experiência Profissional (Aberto pelo ícone de lápis ✏️) -->
+  <div id="exp-edit-modal-backdrop" class="modal-backdrop hidden" style="z-index: 1500;">
+    <div class="modal-window modal-window-sm">
+      <div class="modal-header">
+        <div>
+          <h2>✏️ Editar Experiência Profissional</h2>
+          <p class="modal-subtitle">Altere o cargo, empresa, período ou descrição da experiência.</p>
+        </div>
+        <button type="button" class="btn-close" id="btn-close-exp-edit-modal">✕</button>
+      </div>
+      <div class="modal-content-padded">
+        <input type="hidden" id="edit-exp-id" />
+        <div class="add-item-card" style="margin: 0;">
+          <div class="form-grid-3">
+            <div>
+              <label>Cargo / Função</label>
+              <input type="text" id="edit-exp-role" />
+            </div>
+            <div>
+              <label>Empresa</label>
+              <input type="text" id="edit-exp-company" />
+            </div>
+            <div>
+              <label>Período</label>
+              <input type="text" id="edit-exp-period" />
+            </div>
+          </div>
+          <div class="form-grid-2" style="margin-top: 10px;">
+            <div>
+              <label>Como descrever em PT-BR no CV</label>
+              <input type="text" id="edit-exp-pt" />
+            </div>
+            <div>
+              <label>Como descrever em Inglês no CV</label>
+              <input type="text" id="edit-exp-en" />
+            </div>
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-cancel-exp-edit">Cancelar</button>
+            <button type="button" class="btn btn-primary btn-sm" id="btn-save-exp-edit">💾 Salvar Alterações</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- POPUP 10: Confirmação no Primeiro Clique em "🔄 Buscar Vagas" -->
+  <div id="scrape-confirm-modal-backdrop" class="modal-backdrop hidden" style="z-index: 1600;">
+    <div class="modal-window modal-window-sm">
+      <div class="modal-header">
+        <div>
+          <h2>🔍 Confirmar Parâmetros da Busca de Vagas</h2>
+          <p class="modal-subtitle">Confirme a Senioridade e a Localização / Modalidade antes de iniciar a busca baseando-se no seu Título Profissional e Habilidades.</p>
+        </div>
+        <button type="button" class="btn-close" id="btn-close-scrape-confirm">✕</button>
+      </div>
+      <div class="modal-content-padded">
+        <div class="add-item-card" style="margin: 0;">
+          <div style="margin-bottom: 10px; font-size: 12.5px; color: var(--muted);">
+            Título Profissional usado na busca: <strong id="confirm-scrape-title" style="color: var(--text);">DevOps Engineer</strong>
+          </div>
+          <div class="form-grid-2">
+            <div>
+              <label>Senioridade Desejada</label>
+              <select id="confirm-scrape-seniority">
+                <option value="all">Todas</option>
+                <option value="estagio">Estágio / Trainee</option>
+                <option value="junior">Júnior</option>
+                <option value="junior_pleno">Júnior / Pleno</option>
+                <option value="pleno">Pleno</option>
+                <option value="senior">Sênior</option>
+                <option value="especialista">Especialista / Staff</option>
+              </select>
+            </div>
+            <div>
+              <label>Localização / Modalidade</label>
+              <select id="confirm-scrape-workmode">
+                <option value="remoto_br">🌎 Brasil (100% Remoto)</option>
+                <option value="remoto_global">🌐 Global / LatAm (100% Remoto - EN)</option>
+                <option value="hibrido_sp">🏢 Híbrido / Presencial (Brasil)</option>
+              </select>
+            </div>
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-cancel-scrape-confirm">Cancelar</button>
+            <button type="button" class="btn btn-primary btn-sm" id="btn-confirm-scrape-run">✅ Confirmar e Buscar Vagas</button>
           </div>
         </div>
       </div>
