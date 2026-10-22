@@ -115,5 +115,21 @@ test('API serves Kanban bootstrap, bilingual job popup detail with Gupy kit & hi
   assert.equal(agentRes.status, 200);
   const updatedAgent = await agentRes.json();
   assert.equal(updatedAgent.agent.content, '# Custom CV Adapter MD\nStrict rules.');
+
+  // 9. Edit language via editId (pencil button on languages)
+  const langToEdit = extractedData.profile.languages[0];
+  const editLangRes = await fetch(`${baseUrl}/api/profile/languages`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ editId: langToEdit.id, language: 'Inglês Técnico', proficiency: 'Avançado' })
+  });
+  assert.equal(editLangRes.status, 200);
+  const editedLangData = await editLangRes.json();
+  assert.ok(
+    editedLangData.profile.languages.some(
+      (l: { id: number; language: string; proficiency: string }) =>
+        l.id === langToEdit.id && l.language === 'Inglês Técnico' && l.proficiency === 'Avançado'
+    )
+  );
 });
 

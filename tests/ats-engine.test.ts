@@ -243,5 +243,44 @@ test('extractProfileFromCvText parses multi-section Portuguese/English CVs into 
   assert.equal(obsProj.url, 'https://github.com/gabrieldevops/homelab-obs');
 });
 
+test('CV import leaves missing fields blank instead of saving placeholders and translates/rewrites experience summary', () => {
+  const db = new AppDatabase(':memory:');
+  // Import a CV that has NO GitHub, NO LinkedIn, NO phone, and a project with NO URL
+  const partialCv = `
+    Lucas Ferreira
+    lucas@cloud.io
+    EXPERIÊNCIA PROFISSIONAL
+    DevOps Engineer - NimbusTech (2024 - Atual)
+    Automação de pipelines CI/CD com GitHub Actions e containerização de aplicações com Docker em ambientes em nuvem.
+    PROJETOS PESSOAIS
+    - Pipeline GitOps Local: Entrega contínua utilizando ArgoCD e Kubernetes.
+  `;
+
+  const profile = extractProfileFromCvText(partialCv, db);
+  assert.equal(profile.name, 'Lucas Ferreira');
+  assert.equal(profile.email, 'lucas@cloud.io');
+  assert.equal(profile.phone, '');
+  assert.equal(profile.linkedin, '');
+  assert.equal(profile.github, '');
+
+  // Seed placeholder project is removed and the imported project without URL has url === ''
+  assert.equal(profile.personalProjects.length, 1);
+  assert.equal(profile.personalProjects[0].url, '');
+
+  // Tailored CV in EN translates the unified "Como descrever" and rewrites "Resumo da Experiência"
+  const tailoredEn = generateHonestTailoredCv(
+    {
+      title: 'Senior DevOps Engineer',
+      company: 'GlobalScale',
+      description: 'Looking for DevOps Engineer with Docker, GitHub Actions, and ArgoCD.'
+    },
+    profile,
+    'en'
+  );
+  assert.ok(tailoredEn.experienceBullets.some((b) => b.includes('CI/CD pipeline automation') && b.includes('GlobalScale')));
+  assert.ok(tailoredEn.relevantProjects[0].descriptionEn.includes('Continuous delivery using ArgoCD'));
+});
+
+
 
 

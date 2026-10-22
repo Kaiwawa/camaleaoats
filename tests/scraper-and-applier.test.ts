@@ -123,5 +123,19 @@ test('parseLinkedInGuestSearchHtml extracts live job cards and buildSearchQueryF
   assert.equal(parsed[0].jobId, '4472438911');
   assert.equal(parsed[0].title, 'DevOps Pleno (AWS / Docker)');
   assert.equal(parsed[0].company, 'Serasa Experian');
+
+  // Verify Título Profissional directs the search and checkboxes for Seniority, Location, Modality & Date Posted work
+  const updatedProfile = db.updateProfileInfo({ titlePt: 'Site Reliability Engineer | Cloud' });
+  const customQuery = buildSearchQueryFromProfile(updatedProfile, 'all', 'remoto_br', {
+    seniorities: ['junior', 'pleno'],
+    locationFilter: 'global',
+    workModes: ['remoto', 'hibrido'],
+    datePosted: '7d'
+  });
+  assert.equal(customQuery.roleTitle, 'Site Reliability Engineer');
+  assert.match(customQuery.keywords, /^Site Reliability Engineer Junior Pleno$/);
+  assert.equal(customQuery.location, 'Worldwide');
+  assert.equal(customQuery.remoteFilter, '2,3');
+  assert.equal(customQuery.timePostedParam, 'r604800');
 });
 

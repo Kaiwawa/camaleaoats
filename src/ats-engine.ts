@@ -1,5 +1,5 @@
 import zlib from 'node:zlib';
-import type { Job, Language, Profile, RecruiterMessages, SkillLevel, TailoredCv } from './types.ts';
+import type { ExperienceItem, Job, Language, Profile, RecruiterMessages, SkillLevel, TailoredCv } from './types.ts';
 
 export const ANTI_HALLUCINATION_SYSTEM_PROMPT = `
 Você é o motor de adaptação de currículo e abordagem do CamaleãoATS.
@@ -170,6 +170,132 @@ export function analyzeAndHighlightJob(
   };
 }
 
+export function translateCvText(text: string, targetLang: Language): string {
+  const raw = (text || '').trim();
+  if (!raw) return '';
+
+  const ptToEnPairs: Array<[RegExp, string]> = [
+    [/\bForte experi[êe]ncia na cria[çc][ãa]o e otimiza[çc][ãa]o de imagens\b/gi, 'Strong hands-on experience building and optimizing images'],
+    [/\bExperi[êe]ncia pr[áa]tica com\b/gi, 'Hands-on experience with'],
+    [/\bViv[êe]ncia pr[áa]tica com\b/gi, 'Hands-on experience with'],
+    [/\bForte experi[êe]ncia com\b/gi, 'Strong experience with'],
+    [/\bAtua[çc][ãa]o com\b/gi, 'Working with'],
+    [/\bAutoma[çc][ãa]o de esteiras CI\/CD\b/gi, 'CI/CD pipeline automation'],
+    [/\bAutoma[çc][ãa]o de pipelines CI\/CD\b/gi, 'CI/CD pipeline automation'],
+    [/\bConstru[çc][ãa]o e manuten[çc][ãa]o de pipelines\b/gi, 'Building and maintaining pipelines'],
+    [/\bEscrita e manuten[çc][ãa]o de manifestos YAML\b/gi, 'Authoring and maintaining YAML manifests'],
+    [/\bProvisionamento de cluster\b/gi, 'Cluster provisioning'],
+    [/\bProvisionamento declarativo de recursos em nuvem\b/gi, 'Declarative cloud resource provisioning'],
+    [/\bProvisionamento de infraestrutura\b/gi, 'Infrastructure provisioning'],
+    [/\bInfraestrutura como C[óo]digo\b/gi, 'Infrastructure as Code'],
+    [/\bEntrega cont[íi]nua\b/gi, 'Continuous delivery'],
+    [/\bIntegra[çc][ãa]o cont[íi]nua\b/gi, 'Continuous integration'],
+    [/\bContaineriza[çc][ãa]o de aplica[çc][õo]es\b/gi, 'Application containerization'],
+    [/\bambientes em nuvem\b/gi, 'cloud environments'],
+    [/\bambientes containerizados\b/gi, 'containerized environments'],
+    [/\bpadroniza[çc][ãa]o de ambientes\b/gi, 'environment standardization'],
+    [/\bmonitoramento e observabilidade\b/gi, 'monitoring and observability'],
+    [/\bgerenciada pelo\b/gi, 'managed by'],
+    [/\butilizando\b/gi, 'using'],
+    [/\bintegrado ao?\b/gi, 'integrated with'],
+    [/\bintegrados a\b/gi, 'integrated with'],
+    [/\bpara aplica[çc][õo]es\b/gi, 'for applications'],
+    [/\bconfigura[çc][ãa]o declarativa de\b/gi, 'declarative configuration of'],
+    [/\bconfigura[çc][ãa]o de\b/gi, 'configuring'],
+    [/\badministra[çc][ãa]o de\b/gi, 'administration of'],
+    [/\bdesenvolvimento de scripts de automa[çc][ãa]o\b/gi, 'developing automation scripts'],
+    [/\bgerenciamento de\b/gi, 'managing'],
+    [/\bimplanta[çc][ãa]o de\b/gi, 'deploying'],
+    [/\botimiza[çc][ãa]o de custos\b/gi, 'cost optimization'],
+    [/\balta disponibilidade\b/gi, 'high availability'],
+    [/\bseguran[çc]a em nuvem\b/gi, 'cloud security'],
+    [/\bservidores Linux\b/gi, 'Linux servers'],
+    [/\bcom foco em\b/gi, 'focused on'],
+    [/\be opera[çc][ãa]o de\b/gi, 'and operating'],
+    [/\bem produ[çc][ãa]o\b/gi, 'in production'],
+    [/\bAtual\b/g, 'Present']
+  ];
+
+  const enToPtPairs: Array<[RegExp, string]> = [
+    [/\bStrong hands-on experience building and optimizing images\b/gi, 'Forte experiência na criação e otimização de imagens'],
+    [/\bHands-on experience with\b/gi, 'Vivência prática com'],
+    [/\bStrong experience with\b/gi, 'Forte experiência com'],
+    [/\bWorking with\b/gi, 'Atuação com'],
+    [/\bCI\/CD pipeline automation\b/gi, 'Automação de pipelines CI/CD'],
+    [/\bBuilding and maintaining pipelines\b/gi, 'Construção e manutenção de pipelines'],
+    [/\bAuthoring and maintaining YAML manifests\b/gi, 'Escrita e manutenção de manifestos YAML'],
+    [/\bCluster provisioning\b/gi, 'Provisionamento de cluster'],
+    [/\bDeclarative cloud resource provisioning\b/gi, 'Provisionamento declarativo de recursos em nuvem'],
+    [/\bInfrastructure provisioning\b/gi, 'Provisionamento de infraestrutura'],
+    [/\bInfrastructure as Code\b/gi, 'Infraestrutura como Código'],
+    [/\bContinuous delivery\b/gi, 'Entrega contínua'],
+    [/\bContinuous integration\b/gi, 'Integração contínua'],
+    [/\bApplication containerization\b/gi, 'Containerização de aplicações'],
+    [/\bcloud environments\b/gi, 'ambientes em nuvem'],
+    [/\bcontainerized environments\b/gi, 'ambientes containerizados'],
+    [/\benvironment standardization\b/gi, 'padronização de ambientes'],
+    [/\bmonitoring and observability\b/gi, 'monitoramento e observabilidade'],
+    [/\bmanaged by\b/gi, 'gerenciado por'],
+    [/\busing\b/gi, 'utilizando'],
+    [/\bintegrated with\b/gi, 'integrado a'],
+    [/\bfor applications\b/gi, 'para aplicações'],
+    [/\bdeclarative configuration of\b/gi, 'configuração declarativa de'],
+    [/\bconfiguring\b/gi, 'configuração de'],
+    [/\badministration of\b/gi, 'administração de'],
+    [/\bdeveloping automation scripts\b/gi, 'desenvolvimento de scripts de automação'],
+    [/\bmanaging\b/gi, 'gerenciamento de'],
+    [/\bdeploying\b/gi, 'implantação de'],
+    [/\bcost optimization\b/gi, 'otimização de custos'],
+    [/\bhigh availability\b/gi, 'alta disponibilidade'],
+    [/\bcloud security\b/gi, 'segurança em nuvem'],
+    [/\bLinux servers\b/gi, 'servidores Linux'],
+    [/\bfocused on\b/gi, 'com foco em'],
+    [/\band operating\b/gi, 'e operação de'],
+    [/\bin production\b/gi, 'em produção'],
+    [/\bPresent\b/g, 'Atual']
+  ];
+
+  let out = raw;
+  const pairs = targetLang === 'en' ? ptToEnPairs : enToPtPairs;
+  for (const [rx, replacement] of pairs) {
+    out = out.replace(rx, replacement);
+  }
+  return out;
+}
+
+export function rewriteExperienceSummaryForJob(
+  exp: ExperienceItem,
+  job: Pick<Job, 'title' | 'company' | 'description'>,
+  matchedKeywords: string[],
+  targetLang: Language
+): string {
+  const baseSource =
+    targetLang === 'en'
+      ? exp.descriptionEn && exp.descriptionEn !== exp.descriptionPt
+        ? exp.descriptionEn
+        : exp.descriptionPt || exp.descriptionEn
+      : exp.descriptionPt || exp.descriptionEn;
+
+  const translatedBase = translateCvText(baseSource, targetLang).replace(/\.+\s*$/, '');
+  const expLower = `${exp.role} ${exp.descriptionPt} ${exp.descriptionEn}`.toLowerCase();
+  const alignedKeywords = matchedKeywords.filter((kw) => expLower.includes(kw.toLowerCase().split(' ')[0]));
+  const focusKeywords = alignedKeywords.length > 0 ? alignedKeywords.slice(0, 4) : matchedKeywords.slice(0, 3);
+
+  if (targetLang === 'en') {
+    const alignSuffix =
+      focusKeywords.length > 0
+        ? ` — directly aligned with ${job.company}'s requirements in ${focusKeywords.join(', ')}.`
+        : '.';
+    return `${translatedBase}${alignSuffix}`;
+  }
+
+  const alignSuffixPt =
+    focusKeywords.length > 0
+      ? ` — atuação diretamente alinhada aos requisitos da vaga na ${job.company} (${focusKeywords.join(', ')}).`
+      : '.';
+  return `${translatedBase}${alignSuffixPt}`;
+}
+
 export function generateHonestTailoredCv(
   job: Pick<Job, 'title' | 'company' | 'description'>,
   profile: Profile,
@@ -195,21 +321,43 @@ export function generateHonestTailoredCv(
 
   scoredSkills.sort((a, b) => b.priority - a.priority);
 
-  const orderedSkills = scoredSkills.map(({ skill }) => ({
-    name: skill.name,
-    level: skill.level,
-    framing: targetLang === 'en' ? skill.honestFramingEn : skill.honestFramingPt
-  }));
+  const orderedSkills = scoredSkills.map(({ skill }) => {
+    const rawFraming =
+      targetLang === 'en'
+        ? skill.honestFramingEn && skill.honestFramingEn !== skill.honestFramingPt
+          ? skill.honestFramingEn
+          : skill.honestFramingPt || skill.honestFramingEn
+        : skill.honestFramingPt || skill.honestFramingEn;
+    return {
+      name: skill.name,
+      level: skill.level,
+      framing: translateCvText(rawFraming, targetLang)
+    };
+  });
 
-  const relevantProjects = (profile.personalProjects || []).filter((proj) =>
-    proj.techStack.some((tech) => descLower.includes(tech.toLowerCase()))
-  );
+  const relevantProjects = (profile.personalProjects || [])
+    .filter((proj) => proj.techStack.some((tech) => descLower.includes(tech.toLowerCase())))
+    .map((proj) => {
+      const sourceDesc =
+        targetLang === 'en'
+          ? proj.descriptionEn && proj.descriptionEn !== proj.descriptionPt
+            ? proj.descriptionEn
+            : proj.descriptionPt || proj.descriptionEn
+          : proj.descriptionPt || proj.descriptionEn;
+      const translated = translateCvText(sourceDesc, targetLang);
+      return {
+        ...proj,
+        descriptionPt: targetLang === 'pt-BR' ? translated : proj.descriptionPt,
+        descriptionEn: targetLang === 'en' ? translated : proj.descriptionEn
+      };
+    });
 
   const asksOtherCloud = /\b(gcp|google cloud|azure|oci|oracle cloud)\b/i.test(descLower);
   const asksOtherCiCd = /\b(gitlab|jenkins|azure devops|bitbucket pipelines|circleci)\b/i.test(descLower);
 
   const honestAdjustmentsMade: string[] = [];
   const experienceBullets: string[] = [];
+  const allMatchedKeywords = [...analysis.strongMatches, ...analysis.evolvingMatches];
 
   if (targetLang === 'en') {
     const topMatchedNames = analysis.strongMatches.length
@@ -219,8 +367,16 @@ export function generateHonestTailoredCv(
     const summary = `DevOps / SRE Engineer (${profile.targetSeniorityEn}) certified in AWS Solutions Architect Associate (SAA-C03), with strong hands-on focus on ${topMatchedNames}. Proven experience in Docker containerization, CI/CD automation with GitHub Actions, GitOps deployments with ArgoCD, and authoring Kubernetes YAML manifests. Fast learner with high adaptability across cloud platforms and infrastructure tooling.`;
 
     for (const exp of profile.experiences || []) {
-      const header = [exp.role, exp.company, exp.period ? `(${exp.period})` : ''].filter(Boolean).join(' — ');
-      experienceBullets.push(`${header}: ${exp.descriptionEn || exp.descriptionPt}`);
+      const periodEn = translateCvText(exp.period || '', 'en');
+      const header = [exp.role, exp.company, periodEn ? `(${periodEn})` : ''].filter(Boolean).join(' — ');
+      const rewrittenSummary = rewriteExperienceSummaryForJob(exp, job, allMatchedKeywords, 'en');
+      experienceBullets.push(`${header}: ${rewrittenSummary}`);
+    }
+
+    if ((profile.experiences || []).length > 0) {
+      honestAdjustmentsMade.push(
+        `Rewrote and translated (${profile.experiences.length}) Professional Experience summary(ies) into English aligned with ${job.company}'s stack.`
+      );
     }
 
     for (const item of orderedSkills) {
@@ -249,9 +405,9 @@ export function generateHonestTailoredCv(
       'Framed Kubernetes strictly within your real expertise without inventing senior cluster admin claims.'
     );
 
-    const k8sSkillEn = profile.skills.find((s) => s.name === 'Kubernetes');
+    const k8sSkillEn = orderedSkills.find((s) => s.name === 'Kubernetes');
     const k8sTextEn = k8sSkillEn
-      ? k8sSkillEn.honestFramingEn
+      ? k8sSkillEn.framing
       : 'Authoring and maintaining Kubernetes YAML manifests integrated with Docker and ArgoCD pipelines.';
 
     const gupyApresentese = [
@@ -288,8 +444,16 @@ export function generateHonestTailoredCv(
   const summaryPt = `Profissional DevOps / SRE (${profile.targetSeniority}) certificado AWS Solutions Architect Associate (SAA-C03), com foco prático em ${topMatchedNamesPt}. Experiência sólida em containerização com Docker, automação de pipelines CI/CD com GitHub Actions, entrega contínua GitOps com ArgoCD e escrita de manifestos YAML para Kubernetes. Perfil altamente adaptável ("camaleão"), com curva de aprendizado rápida para novas clouds e ferramentas de infraestrutura.`;
 
   for (const exp of profile.experiences || []) {
-    const header = [exp.role, exp.company, exp.period ? `(${exp.period})` : ''].filter(Boolean).join(' — ');
-    experienceBullets.push(`${header}: ${exp.descriptionPt}`);
+    const periodPt = translateCvText(exp.period || '', 'pt-BR');
+    const header = [exp.role, exp.company, periodPt ? `(${periodPt})` : ''].filter(Boolean).join(' — ');
+    const rewrittenSummaryPt = rewriteExperienceSummaryForJob(exp, job, allMatchedKeywords, 'pt-BR');
+    experienceBullets.push(`${header}: ${rewrittenSummaryPt}`);
+  }
+
+  if ((profile.experiences || []).length > 0) {
+    honestAdjustmentsMade.push(
+      `Reescreveu e adaptou o Resumo da Experiência (${profile.experiences.length} experiência(s)) destacando as palavras-chave da vaga na ${job.company}.`
+    );
   }
 
   for (const item of orderedSkills) {
@@ -318,9 +482,9 @@ export function generateHonestTailoredCv(
     'Posicionou Kubernetes de forma 100% honesta conforme seu Perfil, passando no filtro de palavras-chave do ATS sem inventar senioridade.'
   );
 
-  const k8sSkillPt = profile.skills.find((s) => s.name === 'Kubernetes');
+  const k8sSkillPt = orderedSkills.find((s) => s.name === 'Kubernetes');
   const k8sTextPt = k8sSkillPt
-    ? k8sSkillPt.honestFramingPt
+    ? k8sSkillPt.framing
     : 'Escrita e manutenção de manifestos YAML para Kubernetes integrados ao fluxo de containers e ArgoCD.';
 
   const gupyApresentesePt = [
@@ -500,6 +664,7 @@ export function extractProfileFromCvText(
     addEducation: (edu: { course: string; institution: string; degree: string; status?: string; year?: string }) => Profile;
     clearPlaceholderEducations?: () => void;
     clearPlaceholderExperiences?: () => void;
+    clearPlaceholderProjects?: () => void;
     addPersonalProject: (proj: { name: string; techStack: string[]; descriptionPt: string; descriptionEn?: string; url?: string }) => Profile;
     addLanguage?: (item: { language: string; proficiency: string }) => Profile;
     addExperience?: (exp: { role: string; company: string; period?: string; descriptionPt: string; descriptionEn?: string }) => Profile;
@@ -512,6 +677,7 @@ export function extractProfileFromCvText(
     .map((l) => l.trim())
     .filter(Boolean);
 
+  const curProfile = db.getProfile();
   const infoPatch: Record<string, string> = {};
 
   const ignoredHeaderRx = /^(curr[íi]culo|curriculum vitae|cv|resumo|summary|perfil|contato|contact|dados pessoais)$/i;
@@ -531,21 +697,47 @@ export function extractProfileFromCvText(
       break;
     }
   }
+  if (!infoPatch.name && /Seu Nome/i.test(curProfile.name || '')) {
+    infoPatch.name = '';
+  }
 
   const emailMatch = rawText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-  if (emailMatch) infoPatch.email = emailMatch[0].toLowerCase();
+  if (emailMatch && !/seu\.email@exemplo\.com/i.test(emailMatch[0])) {
+    infoPatch.email = emailMatch[0].toLowerCase();
+  } else if (/seu\.email@exemplo\.com/i.test(curProfile.email || '')) {
+    infoPatch.email = '';
+  }
 
   const phoneMatch = rawText.match(/(?:(?:\+|00)?55[\s-]?)?\(?\d{2}\)?[\s-]?\d{4,5}[\s-]?\d{4}/);
-  if (phoneMatch) infoPatch.phone = formatPhoneMask(phoneMatch[0]);
+  if (phoneMatch && !/99999-9999/.test(phoneMatch[0])) {
+    infoPatch.phone = formatPhoneMask(phoneMatch[0]);
+  } else if (/99999-9999/.test(curProfile.phone || '')) {
+    infoPatch.phone = '';
+  }
 
   const linkedinMatch = rawText.match(/(?:https?:\/\/)?(?:www\.|[a-z]{2}\.)?linkedin\.com\/in\/[a-zA-Z0-9_-]+/i);
-  if (linkedinMatch) {
+  if (linkedinMatch && !/seu-perfil/i.test(linkedinMatch[0])) {
     infoPatch.linkedin = linkedinMatch[0].startsWith('http') ? linkedinMatch[0] : `https://${linkedinMatch[0]}`;
+  } else if (/seu-perfil/i.test(curProfile.linkedin || '')) {
+    infoPatch.linkedin = '';
   }
 
   const githubMatch = rawText.match(/(?:https?:\/\/)?(?:www\.)?github\.com\/[a-zA-Z0-9_-]+/i);
-  if (githubMatch) {
+  if (githubMatch && !/seu-usuario/i.test(githubMatch[0])) {
     infoPatch.github = githubMatch[0].startsWith('http') ? githubMatch[0] : `https://${githubMatch[0]}`;
+  } else if (/seu-usuario/i.test(curProfile.github || '')) {
+    infoPatch.github = '';
+  }
+
+  // Always clear initial seed placeholder items when importing a CV so missing fields remain blank
+  if (db.clearPlaceholderProjects) {
+    db.clearPlaceholderProjects();
+  }
+  if (db.clearPlaceholderEducations) {
+    db.clearPlaceholderEducations();
+  }
+  if (db.clearPlaceholderExperiences) {
+    db.clearPlaceholderExperiences();
   }
 
   // Section-aware parsing
@@ -630,7 +822,7 @@ export function extractProfileFromCvText(
     const withoutYear = line.replace(/\([^)]*\d{4}[^)]*\)/g, '').trim();
     const parts = withoutYear.split(/\s+[-–—|•]\s+/);
     const course = (parts[0] || withoutYear).trim();
-    const institution = (parts[1] || 'Instituição de Ensino').trim();
+    const institution = (parts[1] || '').trim();
     const degree = /p[óo]s|mba|especializa[çc][ãa]o/i.test(line)
       ? 'Pós-Graduação / MBA'
       : /tecn[óo]logo/i.test(line)
@@ -660,7 +852,7 @@ export function extractProfileFromCvText(
     const withoutYear = clean.replace(/\(\s*20\d{2}\s*\)/g, '').trim();
     const parts = withoutYear.split(/\s+[-–—|]\s+/);
     const name = parts[0].trim();
-    const issuer = parts[1]?.trim() || 'Certificadora Oficial';
+    const issuer = parts[1]?.trim() || '';
     db.addCertification({
       name,
       code: codeMatch ? codeMatch[1].toUpperCase() : '',
@@ -695,7 +887,8 @@ export function extractProfileFromCvText(
     const cleaned = pLine.replace(/^[-•*]\s*/, '').replace(/^projeto( pessoal)?\s*:\s*/i, '').trim();
     if (cleaned.length < 8) continue;
     const urlMatch = cleaned.match(/https?:\/\/[^\s)]+|github\.com\/[^\s)]+/i);
-    const extractedUrl = urlMatch ? (urlMatch[0].startsWith('http') ? urlMatch[0] : `https://${urlMatch[0]}`) : '';
+    const rawUrl = urlMatch ? (urlMatch[0].startsWith('http') ? urlMatch[0] : `https://${urlMatch[0]}`) : '';
+    const extractedUrl = /seu-usuario/i.test(rawUrl) ? '' : rawUrl;
     const withoutUrl = cleaned.replace(/https?:\/\/[^\s)]+|github\.com\/[^\s)]+/gi, '').trim();
     const [rawName, ...rest] = withoutUrl.split(/\s*:\s*/);
     const projName = (rest.length > 0 ? rawName : withoutUrl.slice(0, 55)).trim();
@@ -705,8 +898,8 @@ export function extractProfileFromCvText(
     db.addPersonalProject({
       name: projName,
       techStack: detectedStack.length ? detectedStack : ['DevOps', 'Cloud'],
-      descriptionPt: projDesc,
-      descriptionEn: projDesc,
+      descriptionPt: translateCvText(projDesc, 'pt-BR'),
+      descriptionEn: translateCvText(projDesc, 'en'),
       url: extractedUrl
     });
   }
@@ -725,11 +918,11 @@ export function extractProfileFromCvText(
       if (currentRole || currentDescLines.length > 0) {
         const desc = currentDescLines.join(' ').trim() || currentRole;
         db.addExperience!({
-          role: currentRole || 'DevOps / Cloud Engineer',
-          company: currentCompany || 'Empresa',
+          role: currentRole,
+          company: currentCompany,
           period: currentPeriod,
-          descriptionPt: desc,
-          descriptionEn: desc
+          descriptionPt: translateCvText(desc, 'pt-BR'),
+          descriptionEn: translateCvText(desc, 'en')
         });
       }
       currentRole = '';
@@ -747,8 +940,8 @@ export function extractProfileFromCvText(
         flushExp();
         const withoutPeriod = periodMatch ? cleanLine.replace(periodMatch[0], '').replace(/\(\s*\)/g, '').trim() : cleanLine;
         const parts = withoutPeriod.split(/\s+[-–—|@]\s+/).map((p) => p.trim()).filter(Boolean);
-        currentRole = parts[0] || 'DevOps Engineer';
-        currentCompany = parts[1] || 'Empresa';
+        currentRole = parts[0] || '';
+        currentCompany = parts[1] || '';
         currentPeriod = periodMatch ? periodMatch[1] : (parts[2] || '');
       } else {
         currentDescLines.push(cleanLine);

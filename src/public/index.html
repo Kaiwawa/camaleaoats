@@ -7,33 +7,55 @@
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <!-- Top Navigation Bar (Clean SaaS Header — no hardcoded cert-pill) -->
+  <!-- Top Navigation Bar (Clean SaaS Header — Checkboxes for Seniority & Modality, Separated Location, Date Filter) -->
   <header class="topbar">
     <div class="brand-group">
       <div class="logo">🦎 Camaleão<span>ATS</span></div>
 
-      <!-- Unified Seniority Selector (Used both for Live Scraping & Kanban Filtering) -->
+      <!-- Senioridade Desejada (Caixas de Seleção / Checkboxes) -->
+      <div class="filter-group" id="topbar-seniority-group">
+        <span class="filter-label">Senioridade:</span>
+        <div class="checkbox-pills" id="filter-seniority-checks" role="group" aria-label="Senioridade desejada">
+          <label class="check-pill"><input type="checkbox" name="sen-check" value="estagio" /><span>Estágio</span></label>
+          <label class="check-pill"><input type="checkbox" name="sen-check" value="junior" /><span>Júnior</span></label>
+          <label class="check-pill"><input type="checkbox" name="sen-check" value="junior_pleno" /><span>Jr / Pleno</span></label>
+          <label class="check-pill"><input type="checkbox" name="sen-check" value="pleno" /><span>Pleno</span></label>
+          <label class="check-pill"><input type="checkbox" name="sen-check" value="senior" /><span>Sênior</span></label>
+          <label class="check-pill"><input type="checkbox" name="sen-check" value="especialista" /><span>Especialista</span></label>
+        </div>
+      </div>
+
+      <!-- Local (Separado de Modalidade: Brasil vs Global/LatAm) -->
       <div class="filter-group">
-        <label for="filter-seniority">Senioridade:</label>
-        <select id="filter-seniority" class="select-compact">
-          <option value="all">Todas</option>
-          <option value="estagio">Estágio / Trainee</option>
-          <option value="junior">Júnior</option>
-          <option value="junior_pleno">Júnior / Pleno</option>
-          <option value="pleno">Pleno</option>
-          <option value="senior">Sênior</option>
-          <option value="especialista">Especialista / Staff</option>
+        <label for="select-location" class="filter-label">Local:</label>
+        <select id="select-location" class="select-compact">
+          <option value="br">🌎 Brasil</option>
+          <option value="global">🌐 Global / LatAm</option>
         </select>
       </div>
 
-      <!-- Localização / Modalidade Selector (Moved out of Perfil next to Seniority) -->
-      <div class="filter-group">
-        <label for="select-work-mode">Localização / Modalidade:</label>
-        <select id="select-work-mode" class="select-compact">
-          <option value="remoto_br">🌎 Brasil (100% Remoto)</option>
-          <option value="remoto_global">🌐 Global / LatAm (100% Remoto - EN)</option>
-          <option value="hibrido_sp">🏢 Híbrido / Presencial (Brasil)</option>
-        </select>
+      <!-- Modalidade (Caixas de Seleção / Checkboxes: Remoto, Híbrido, Presencial) -->
+      <div class="filter-group" id="topbar-modality-group">
+        <span class="filter-label">Modalidade:</span>
+        <div class="checkbox-pills" id="filter-modality-checks" role="group" aria-label="Modalidade da vaga">
+          <label class="check-pill"><input type="checkbox" name="mod-check" value="remoto" checked /><span>Remoto</span></label>
+          <label class="check-pill"><input type="checkbox" name="mod-check" value="hibrido" /><span>Híbrido</span></label>
+          <label class="check-pill"><input type="checkbox" name="mod-check" value="presencial" /><span>Presencial</span></label>
+        </div>
+      </div>
+
+      <!-- Botão de Filtros por Data de Postagem -->
+      <div class="filter-group date-filter-wrapper">
+        <button type="button" class="btn btn-secondary btn-sm" id="btn-date-filter" title="Filtrar vagas por data de postagem">
+          📅 Postagem: <span id="date-filter-label">Qualquer data</span> ▾
+        </button>
+        <div id="date-filter-popover" class="date-filter-popover hidden">
+          <button type="button" class="date-opt active" data-date="all">📅 Qualquer data</button>
+          <button type="button" class="date-opt" data-date="24h">⚡ Últimas 24 horas</button>
+          <button type="button" class="date-opt" data-date="3d">🕒 Últimos 3 dias</button>
+          <button type="button" class="date-opt" data-date="7d">📆 Última semana (7 dias)</button>
+          <button type="button" class="date-opt" data-date="30d">🗓️ Último mês (30 dias)</button>
+        </div>
       </div>
     </div>
 
@@ -317,7 +339,7 @@
               <input type="url" id="prof-github" placeholder="https://github.com/seu-usuario" />
             </div>
             <div>
-              <label>Título Profissional</label>
+              <label>Título Profissional (🎯 Direciona a pesquisa de vagas)</label>
               <input type="text" id="prof-title-pt" placeholder="DevOps Engineer | Cloud & Containers" />
             </div>
           </div>
@@ -352,7 +374,7 @@
 
         <!-- Profile Tab 2: Professional Experience -->
         <div id="ptab-exp" class="ptab-panel hidden">
-          <p class="section-hint">Cadastre suas experiências profissionais anteriores ou atuais (elas também são extraídas automaticamente do seu CV).</p>
+          <p class="section-hint">Cadastre suas experiências profissionais anteriores ou atuais. O <strong>Resumo da Experiência</strong> será reescrito e traduzido automaticamente na hora do ajuste do CV para cada vaga.</p>
           <div id="exp-list" class="items-list"></div>
 
           <div class="add-item-card">
@@ -371,15 +393,9 @@
                 <input type="text" id="new-exp-period" placeholder="Ex: 2023 - Atual" />
               </div>
             </div>
-            <div class="form-grid-2" style="margin-top: 8px;">
-              <div>
-                <label>Como descrever em PT-BR no CV</label>
-                <input type="text" id="new-exp-pt" placeholder="Principais atividades e resultados em PT-BR..." />
-              </div>
-              <div>
-                <label>Como descrever em Inglês no CV</label>
-                <input type="text" id="new-exp-en" placeholder="Key responsibilities and achievements in English..." />
-              </div>
+            <div style="margin-top: 10px;">
+              <label for="new-exp-pt">Resumo da Experiência</label>
+              <textarea id="new-exp-pt" class="textarea-exp-summary" rows="5" placeholder="Descreva suas responsabilidades, projetos, arquiteturas e resultados. Este texto será reescrito e traduzido (PT-BR ⇄ EN) automaticamente conforme a vaga..."></textarea>
             </div>
             <div style="display: flex; justify-content: flex-end; margin-top: 10px;">
               <button type="button" class="btn btn-primary btn-sm" id="btn-add-exp">+ Adicionar Experiência</button>
@@ -389,7 +405,7 @@
 
         <!-- Profile Tab 3: Skills & Software (WITH Seniority / Familiarity Level) -->
         <div id="ptab-skills" class="ptab-panel hidden">
-          <p class="section-hint">Aqui ficam suas ferramentas, linguagens e tecnologias com o respectivo <strong>nível de familiaridade/senioridade</strong>.</p>
+          <p class="section-hint">Aqui ficam suas ferramentas, linguagens e tecnologias com o respectivo <strong>nível de familiaridade/senioridade</strong>. O campo <em>Como descrever</em> é traduzido automaticamente (PT-BR ⇄ EN) no CV.</p>
           <div id="skills-evolution-list" class="skills-list"></div>
 
           <div class="add-item-card">
@@ -412,15 +428,9 @@
                 </select>
               </div>
             </div>
-            <div class="form-grid-2" style="margin-top: 8px;">
-              <div>
-                <label>Como descrever em PT-BR no CV</label>
-                <input type="text" id="new-skill-pt" placeholder="Como descrever em PT-BR no CV" />
-              </div>
-              <div>
-                <label>Como descrever em Inglês no CV</label>
-                <input type="text" id="new-skill-en" placeholder="Como descrever em Inglês no CV" />
-              </div>
+            <div style="margin-top: 10px;">
+              <label for="new-skill-pt">Como descrever</label>
+              <input type="text" id="new-skill-pt" placeholder="Como descrever no CV (será traduzido automaticamente PT-BR ⇄ EN)" />
             </div>
             <div style="display: flex; justify-content: flex-end; margin-top: 10px;">
               <button type="button" class="btn btn-primary btn-sm" id="btn-add-skill">+ Adicionar Habilidade</button>
@@ -527,18 +537,12 @@
               </div>
               <div>
                 <label>Link do Projeto / Repositório</label>
-                <input type="url" id="new-proj-url" placeholder="https://github.com/seu-usuario/projeto" />
+                <input type="url" id="new-proj-url" placeholder="https://github.com/..." />
               </div>
             </div>
-            <div class="form-grid-2" style="margin-top: 8px;">
-              <div>
-                <label>Como descrever em PT-BR no CV</label>
-                <input type="text" id="new-proj-pt" placeholder="Descrição técnica em PT-BR para o CV" />
-              </div>
-              <div>
-                <label>Como descrever em Inglês no CV</label>
-                <input type="text" id="new-proj-en" placeholder="Descrição técnica em Inglês para o CV" />
-              </div>
+            <div style="margin-top: 10px;">
+              <label for="new-proj-pt">Como descrever</label>
+              <input type="text" id="new-proj-pt" placeholder="Como descrever o projeto no CV (será traduzido automaticamente PT-BR ⇄ EN)" />
             </div>
             <div style="display: flex; justify-content: flex-end; margin-top: 10px;">
               <button type="button" class="btn btn-primary btn-sm" id="btn-add-proj">+ Adicionar Projeto Pessoal</button>
@@ -685,15 +689,9 @@
               </select>
             </div>
           </div>
-          <div class="form-grid-2" style="margin-top: 10px;">
-            <div>
-              <label>Como descrever em PT-BR no CV</label>
-              <input type="text" id="edit-skill-pt" placeholder="Descrição técnica em Português..." />
-            </div>
-            <div>
-              <label>Como descrever em Inglês no CV</label>
-              <input type="text" id="edit-skill-en" placeholder="Technical description in English..." />
-            </div>
+          <div style="margin-top: 10px;">
+            <label for="edit-skill-pt">Como descrever</label>
+            <input type="text" id="edit-skill-pt" placeholder="Como descrever no CV (traduzido automaticamente PT-BR ⇄ EN)..." />
           </div>
           <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
             <button type="button" class="btn btn-secondary btn-sm" id="btn-cancel-skill-edit">Cancelar</button>
@@ -830,15 +828,9 @@
               <input type="url" id="edit-proj-url" placeholder="https://github.com/..." />
             </div>
           </div>
-          <div class="form-grid-2" style="margin-top: 10px;">
-            <div>
-              <label>Como descrever em PT-BR no CV</label>
-              <input type="text" id="edit-proj-pt" />
-            </div>
-            <div>
-              <label>Como descrever em Inglês no CV</label>
-              <input type="text" id="edit-proj-en" />
-            </div>
+          <div style="margin-top: 10px;">
+            <label for="edit-proj-pt">Como descrever</label>
+            <input type="text" id="edit-proj-pt" placeholder="Como descrever o projeto no CV (traduzido automaticamente PT-BR ⇄ EN)..." />
           </div>
           <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
             <button type="button" class="btn btn-secondary btn-sm" id="btn-cancel-proj-edit">Cancelar</button>
@@ -851,11 +843,11 @@
 
   <!-- POPUP 9: Mini Popup para Editar Experiência Profissional (Aberto pelo ícone de lápis ✏️) -->
   <div id="exp-edit-modal-backdrop" class="modal-backdrop hidden" style="z-index: 1500;">
-    <div class="modal-window modal-window-sm">
+    <div class="modal-window modal-window-md">
       <div class="modal-header">
         <div>
           <h2>✏️ Editar Experiência Profissional</h2>
-          <p class="modal-subtitle">Altere o cargo, empresa, período ou descrição da experiência.</p>
+          <p class="modal-subtitle">Altere o cargo, empresa, período ou o Resumo da Experiência.</p>
         </div>
         <button type="button" class="btn-close" id="btn-close-exp-edit-modal">✕</button>
       </div>
@@ -865,26 +857,20 @@
           <div class="form-grid-3">
             <div>
               <label>Cargo / Função</label>
-              <input type="text" id="edit-exp-role" />
+              <input type="text" id="edit-exp-role" placeholder="Ex: DevOps Engineer, Analista Cloud..." />
             </div>
             <div>
               <label>Empresa</label>
-              <input type="text" id="edit-exp-company" />
+              <input type="text" id="edit-exp-company" placeholder="Ex: Nome da Empresa" />
             </div>
             <div>
               <label>Período</label>
-              <input type="text" id="edit-exp-period" />
+              <input type="text" id="edit-exp-period" placeholder="Ex: 2023 - Atual" />
             </div>
           </div>
-          <div class="form-grid-2" style="margin-top: 10px;">
-            <div>
-              <label>Como descrever em PT-BR no CV</label>
-              <input type="text" id="edit-exp-pt" />
-            </div>
-            <div>
-              <label>Como descrever em Inglês no CV</label>
-              <input type="text" id="edit-exp-en" />
-            </div>
+          <div style="margin-top: 10px;">
+            <label for="edit-exp-pt">Resumo da Experiência</label>
+            <textarea id="edit-exp-pt" class="textarea-exp-summary" rows="5" placeholder="Descreva suas responsabilidades, projetos, arquiteturas e resultados. Este texto será reescrito e traduzido (PT-BR ⇄ EN) automaticamente conforme a vaga..."></textarea>
           </div>
           <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
             <button type="button" class="btn btn-secondary btn-sm" id="btn-cancel-exp-edit">Cancelar</button>
@@ -895,44 +881,90 @@
     </div>
   </div>
 
-  <!-- POPUP 10: Confirmação no Primeiro Clique em "🔄 Buscar Vagas" -->
-  <div id="scrape-confirm-modal-backdrop" class="modal-backdrop hidden" style="z-index: 1600;">
+  <!-- POPUP 9B: Mini Popup para Editar Idioma (Aberto pelo ícone de lápis ✏️ nos Idiomas) -->
+  <div id="lang-edit-modal-backdrop" class="modal-backdrop hidden" style="z-index: 1500;">
     <div class="modal-window modal-window-sm">
       <div class="modal-header">
         <div>
+          <h2>✏️ Editar Idioma</h2>
+          <p class="modal-subtitle">Altere o idioma ou o nível de proficiência.</p>
+        </div>
+        <button type="button" class="btn-close" id="btn-close-lang-edit-modal">✕</button>
+      </div>
+      <div class="modal-content-padded">
+        <input type="hidden" id="edit-lang-id" />
+        <div class="add-item-card" style="margin: 0;">
+          <div class="form-grid-2">
+            <div>
+              <label>Idioma</label>
+              <input type="text" id="edit-lang-name" placeholder="Ex: Inglês, Espanhol, Português..." />
+            </div>
+            <div>
+              <label>Nível de Proficiência</label>
+              <select id="edit-lang-prof">
+                <option value="Básico">Básico</option>
+                <option value="Intermediário / Leitura Técnica">Intermediário / Leitura Técnica</option>
+                <option value="Intermediário">Intermediário (Conversação)</option>
+                <option value="Avançado">Avançado</option>
+                <option value="Nativo / Fluente">Nativo / Fluente</option>
+              </select>
+            </div>
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-cancel-lang-edit">Cancelar</button>
+            <button type="button" class="btn btn-primary btn-sm" id="btn-save-lang-edit">💾 Salvar Alterações</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- POPUP 10: Confirmação no Primeiro Clique em "🔄 Buscar Vagas" -->
+  <div id="scrape-confirm-modal-backdrop" class="modal-backdrop hidden" style="z-index: 1600;">
+    <div class="modal-window modal-window-md">
+      <div class="modal-header">
+        <div>
           <h2>🔍 Confirmar Parâmetros da Busca de Vagas</h2>
-          <p class="modal-subtitle">Confirme a Senioridade e a Localização / Modalidade antes de iniciar a busca baseando-se no seu Título Profissional e Habilidades.</p>
+          <p class="modal-subtitle">Confirme a Senioridade Desejada, Localização e Modalidade antes de iniciar a busca direcionada pelo seu Título Profissional.</p>
         </div>
         <button type="button" class="btn-close" id="btn-close-scrape-confirm">✕</button>
       </div>
       <div class="modal-content-padded">
         <div class="add-item-card" style="margin: 0;">
-          <div style="margin-bottom: 10px; font-size: 12.5px; color: var(--muted);">
-            Título Profissional usado na busca: <strong id="confirm-scrape-title" style="color: var(--text);">DevOps Engineer</strong>
+          <div style="margin-bottom: 12px; font-size: 13px; color: var(--muted);">
+            🎯 Título Profissional que direciona a pesquisa: <strong id="confirm-scrape-title" style="color: var(--text);">DevOps Engineer</strong>
           </div>
+
+          <div style="margin-bottom: 12px;">
+            <label>Senioridade Desejada (Caixas de Seleção)</label>
+            <div class="checkbox-pills" id="confirm-seniority-checks" style="margin-top: 6px;">
+              <label class="check-pill"><input type="checkbox" name="confirm-sen-check" value="estagio" /><span>Estágio / Trainee</span></label>
+              <label class="check-pill"><input type="checkbox" name="confirm-sen-check" value="junior" /><span>Júnior</span></label>
+              <label class="check-pill"><input type="checkbox" name="confirm-sen-check" value="junior_pleno" /><span>Júnior / Pleno</span></label>
+              <label class="check-pill"><input type="checkbox" name="confirm-sen-check" value="pleno" /><span>Pleno</span></label>
+              <label class="check-pill"><input type="checkbox" name="confirm-sen-check" value="senior" /><span>Sênior</span></label>
+              <label class="check-pill"><input type="checkbox" name="confirm-sen-check" value="especialista" /><span>Especialista / Staff</span></label>
+            </div>
+          </div>
+
           <div class="form-grid-2">
             <div>
-              <label>Senioridade Desejada</label>
-              <select id="confirm-scrape-seniority">
-                <option value="all">Todas</option>
-                <option value="estagio">Estágio / Trainee</option>
-                <option value="junior">Júnior</option>
-                <option value="junior_pleno">Júnior / Pleno</option>
-                <option value="pleno">Pleno</option>
-                <option value="senior">Sênior</option>
-                <option value="especialista">Especialista / Staff</option>
+              <label for="confirm-scrape-location">Local</label>
+              <select id="confirm-scrape-location">
+                <option value="br">🌎 Brasil</option>
+                <option value="global">🌐 Global / LatAm</option>
               </select>
             </div>
             <div>
-              <label>Localização / Modalidade</label>
-              <select id="confirm-scrape-workmode">
-                <option value="remoto_br">🌎 Brasil (100% Remoto)</option>
-                <option value="remoto_global">🌐 Global / LatAm (100% Remoto - EN)</option>
-                <option value="hibrido_sp">🏢 Híbrido / Presencial (Brasil)</option>
-              </select>
+              <label>Modalidade (Caixas de Seleção)</label>
+              <div class="checkbox-pills" id="confirm-modality-checks" style="margin-top: 4px;">
+                <label class="check-pill"><input type="checkbox" name="confirm-mod-check" value="remoto" checked /><span>Remoto</span></label>
+                <label class="check-pill"><input type="checkbox" name="confirm-mod-check" value="hibrido" /><span>Híbrido</span></label>
+                <label class="check-pill"><input type="checkbox" name="confirm-mod-check" value="presencial" /><span>Presencial</span></label>
+              </div>
             </div>
           </div>
-          <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
+          <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
             <button type="button" class="btn btn-secondary btn-sm" id="btn-cancel-scrape-confirm">Cancelar</button>
             <button type="button" class="btn btn-primary btn-sm" id="btn-confirm-scrape-run">✅ Confirmar e Buscar Vagas</button>
           </div>

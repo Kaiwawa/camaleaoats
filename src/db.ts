@@ -163,6 +163,7 @@ export class AppDatabase {
         recruiter_email TEXT NOT NULL DEFAULT '',
         recruiter_status TEXT NOT NULL DEFAULT 'nao_enviado',
         applied_at TEXT DEFAULT '',
+        posted_at TEXT NOT NULL DEFAULT '',
         created_at TEXT NOT NULL
       );
 
@@ -172,10 +173,13 @@ export class AppDatabase {
       );
     `);
 
-    // Safe migration if existing table lacked seniority column
+    // Safe migration if existing table lacked seniority or posted_at column
     const cols = this.db.prepare('PRAGMA table_info(jobs)').all() as Array<{ name: string }>;
     if (!cols.some((c) => c.name === 'seniority')) {
       this.db.exec(`ALTER TABLE jobs ADD COLUMN seniority TEXT NOT NULL DEFAULT 'junior_pleno'`);
+    }
+    if (!cols.some((c) => c.name === 'posted_at')) {
+      this.db.exec(`ALTER TABLE jobs ADD COLUMN posted_at TEXT NOT NULL DEFAULT ''`);
     }
 
     // Safe migration if certifications table lacked code column
@@ -204,8 +208,8 @@ export class AppDatabase {
           '+55 (11) 99999-9999',
           'https://www.linkedin.com/in/seu-perfil',
           'https://github.com/seu-usuario',
-          'Brasil (100% Remoto)',
-          'Brazil (100% Remote)',
+          'Brasil (Remoto)',
+          'Brazil (Remote)',
           'Profissional DevOps com certificação AWS Solutions Architect Associate (SAA-C03), forte domínio em Docker, automação de esteiras CI/CD com GitHub Actions e entrega contínua GitOps com ArgoCD. Curva de aprendizado acelerada e alta adaptabilidade entre provedores Cloud e ferramentas de infraestrutura.',
           'DevOps Engineer holding the AWS Solutions Architect Associate (SAA-C03) certification, with strong hands-on expertise in Docker containerization, CI/CD pipelines using GitHub Actions, and GitOps continuous delivery with ArgoCD. Fast learner with high adaptability across cloud providers and infrastructure stacks.',
           JSON.stringify(certs)
@@ -228,7 +232,7 @@ export class AppDatabase {
           JSON.stringify(['Kubernetes', 'YAML', 'ArgoCD', 'Docker', 'Kind', 'GitOps']),
           'Provisionamento de cluster Kubernetes local com Kind, configuração declarativa de manifestos YAML (Deployments, Services) e entrega contínua GitOps gerenciada pelo ArgoCD.',
           'Local Kubernetes cluster provisioning with Kind, declarative YAML manifests (Deployments, Services), and GitOps continuous delivery managed by ArgoCD.',
-          'https://github.com/seu-usuario/homelab-gitops'
+          ''
         );
 
       this.db
@@ -347,14 +351,18 @@ export class AppDatabase {
         {
           slug: 'cv-adapter.md',
           title: 'Agente Adaptador de CV (ATS)',
-          description: 'Instruções Markdown para reordenar e adaptar o CV às palavras-chave da vaga sem alucinar.',
+          description: 'Instruções Markdown para reordenar, reescrever experiências e traduzir o CV conforme o idioma da vaga.',
           content: `# Agente Adaptador de CV (cv-adapter.md)
 
 ## Regras Inegociáveis Anti-Alucinação
 1. Nunca invente empresas, cargos, anos de experiência ou certificações não listadas no Perfil.
 2. Em habilidades marcadas como "Em Evolução" (ex: Kubernetes YAML), posicione com precisão técnica o que o candidato realmente faz sem fingir senioridade de administrador de cluster.
 3. Inclua Projetos Pessoais do perfil apenas quando as tecnologias do projeto tiverem interseção com os requisitos da vaga.
-4. Priorize no topo do Resumo e das Competências as palavras-chave exatas que o ATS da vaga busca.`,
+4. Priorize no topo do Resumo e das Competências as palavras-chave exatas que o ATS da vaga busca.
+
+## Tarefa de Reescrita de Experiência Profissional e Tradução Automática (PT-BR ⇄ EN)
+5. Reescreva e adapte o campo "Resumo da Experiência" de cada Experiência Profissional cadastrada no Perfil para evidenciar as entregas, práticas e palavras-chave que têm sinergia com a vaga alvo, mantendo 100% de fidelidade aos fatos reais.
+6. Traduza automaticamente todos os campos "Como descrever" (Habilidades e Projetos Pessoais) e "Resumo da Experiência" com base na língua selecionada no CV (PT-BR para EN ou EN para PT-BR).`,
           updatedAt: now
         },
         {
@@ -541,7 +549,7 @@ export class AppDatabase {
       .run(
         cert.name.trim(),
         cleanCode,
-        cert.issuer?.trim() || 'Certificadora Oficial',
+        cert.issuer?.trim() || '',
         cleanYear,
         cert.credentialUrl?.trim() || ''
       );
@@ -615,6 +623,14 @@ export class AppDatabase {
     this.db.prepare(`DELETE FROM experiences WHERE company = 'Experiência Prática / Projetos Cloud'`).run();
   }
 
+  public clearPlaceholderProjects(): void {
+    this.db
+      .prepare(
+        `DELETE FROM personal_projects WHERE name = 'Homelab Kubernetes (Kind) & GitOps com ArgoCD' OR url LIKE '%seu-usuario%'`
+      )
+      .run();
+  }
+
   public addLanguage(item: { language: string; proficiency: string }): Profile {
     this.db
       .prepare(
@@ -622,6 +638,15 @@ export class AppDatabase {
          ON CONFLICT(language) DO UPDATE SET proficiency = excluded.proficiency`
       )
       .run(item.language.trim(), item.proficiency.trim() || 'Intermediário');
+    return this.getProfile();
+  }
+
+  public updateLanguage(id: number, patch: { language?: string; proficiency?: string }): Profile {
+    const existing = this.db.prepare('SELECT * FROM languages WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!existing) throw new Error(`Language ${id} not found`);
+    const nextLang = patch.language?.trim() || String(existing.language);
+    const nextProf = patch.proficiency?.trim() || String(existing.proficiency);
+    this.db.prepare('UPDATE languages SET language = ?, proficiency = ? WHERE id = ?').run(nextLang, nextProf, id);
     return this.getProfile();
   }
 
@@ -898,6 +923,7 @@ export class AppDatabase {
   }
 
   private mapJobRow(r: Record<string, unknown>): Job {
+    const createdAt = String(r.created_at);
     return {
       id: Number(r.id),
       title: String(r.title),
@@ -916,7 +942,8 @@ export class AppDatabase {
       recruiterEmail: String(r.recruiter_email ?? ''),
       recruiterStatus: String(r.recruiter_status ?? 'nao_enviado') as RecruiterStatus,
       appliedAt: String(r.applied_at ?? ''),
-      createdAt: String(r.created_at)
+      postedAt: String(r.posted_at || createdAt),
+      createdAt
     };
   }
 
@@ -934,7 +961,7 @@ export class AppDatabase {
         .prepare(
           `UPDATE jobs SET
             title = ?, company = ?, platform = ?, location = ?, seniority = ?, description = ?,
-            language = ?, match_score = ?
+            language = ?, match_score = ?, posted_at = ?
            WHERE id = ?`
         )
         .run(
@@ -946,19 +973,21 @@ export class AppDatabase {
           input.description,
           input.language ?? String(existing.language),
           input.matchScore ?? Number(existing.match_score),
+          input.postedAt || String(existing.posted_at || existing.created_at || ''),
           Number(existing.id)
         );
       return this.getJob(Number(existing.id))!;
     }
 
     const now = new Date().toISOString();
+    const postedAt = input.postedAt || now;
     const res = this.db
       .prepare(
         `INSERT INTO jobs (
           title, company, url, dedup_key, platform, location, seniority, description,
           language, status, match_score, recruiter_name, recruiter_url, recruiter_email,
-          recruiter_status, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'abertas', ?, ?, ?, ?, 'nao_enviado', ?)`
+          recruiter_status, posted_at, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'abertas', ?, ?, ?, ?, 'nao_enviado', ?, ?)`
       )
       .run(
         input.title,
@@ -974,6 +1003,7 @@ export class AppDatabase {
         input.recruiterName ?? '',
         input.recruiterUrl ?? '',
         input.recruiterEmail ?? '',
+        postedAt,
         now
       );
 

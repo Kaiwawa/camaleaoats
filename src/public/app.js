@@ -5,15 +5,11 @@ let state = {
   agentPrompts: [],
   activeJobId: null,
   activeLang: 'pt-BR',
-  seniorityFilter: 'all',
-  workMode: 'remoto_br',
+  selectedSeniorities: [],
+  locationFilter: 'br',
+  workModes: ['remoto'],
+  datePosted: 'all',
   activeAgentSlug: 'cv-adapter.md'
-};
-
-const WORK_MODE_LOCATIONS = {
-  remoto_br: { pt: 'Brasil (100% Remoto)', en: 'Brazil (100% Remote)' },
-  remoto_global: { pt: 'Global / LatAm (100% Remoto)', en: 'Remote - Worldwide / LatAm' },
-  hibrido_sp: { pt: 'Brasil (Híbrido / Presencial)', en: 'Brazil (Hybrid / On-site)' }
 };
 
 const SENIORITY_LABELS = {
@@ -24,6 +20,39 @@ const SENIORITY_LABELS = {
   senior: 'Sênior',
   especialista: 'Especialista / Staff'
 };
+
+const DATE_POSTED_LABELS = {
+  all: 'Qualquer data',
+  '24h': 'Últimas 24h',
+  '3d': 'Últimos 3 dias',
+  '7d': 'Última semana',
+  '30d': 'Último mês'
+};
+
+function buildLocationDisplay(locationFilter, workModes) {
+  const locPt = locationFilter === 'global' ? 'Global / LatAm' : 'Brasil';
+  const locEn = locationFilter === 'global' ? 'Worldwide / LatAm' : 'Brazil';
+  const modes = workModes.length ? workModes : ['remoto'];
+  const ptLabels = modes.map((m) => (m === 'hibrido' ? 'Híbrido' : m === 'presencial' ? 'Presencial' : 'Remoto'));
+  const enLabels = modes.map((m) => (m === 'hibrido' ? 'Hybrid' : m === 'presencial' ? 'On-site' : 'Remote'));
+  return {
+    pt: `${locPt} (${ptLabels.join(', ')})`,
+    en: `${locEn} (${enLabels.join(', ')})`
+  };
+}
+
+function formatPostedDateBadge(isoStr) {
+  if (!isoStr) return '📅 Recente';
+  const d = new Date(isoStr);
+  if (Number.isNaN(d.getTime())) return '📅 Recente';
+  const diffMs = Date.now() - d.getTime();
+  const diffHours = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60)));
+  if (diffHours < 24) return '📅 Hoje';
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays === 1) return '📅 Há 1 dia';
+  if (diffDays <= 30) return `📅 Há ${diffDays}d`;
+  return `📅 ${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}`;
+}
 
 function escapeHtmlClient(str) {
   return String(str || '')
@@ -101,23 +130,36 @@ async function loadBootstrap() {
   renderKanban();
 }
 
+let headerInitializedFromProfile = false;
+
 function renderHeader() {
   if (!state.profile) return;
-  const allOpt = document.querySelector('#filter-seniority option[value="all"]');
-  if (allOpt) {
-    allOpt.textContent = 'Todas';
+  if (!headerInitializedFromProfile) {
+    headerInitializedFromProfile = true;
+    const loc = (state.profile.locationPt || '').toLowerCase();
+    state.locationFilter = loc.includes('global') || loc.includes('latam') || loc.includes('worldwide') ? 'global' : 'br';
+
+    const modes = [];
+    if (loc.includes('remoto') || loc.includes('remote')) modes.push('remoto');
+    if (loc.includes('híbrido') || loc.includes('hibrido') || loc.includes('hybrid')) modes.push('hibrido');
+    if (loc.includes('presencial') || loc.includes('on-site')) modes.push('presencial');
+    state.workModes = modes.length > 0 ? modes : ['remoto'];
   }
-  const loc = (state.profile.locationPt || '').toLowerCase();
-  if (loc.includes('global') || loc.includes('latam') || loc.includes('worldwide')) {
-    state.workMode = 'remoto_global';
-  } else if (loc.includes('híbrido') || loc.includes('hibrido') || loc.includes('presencial')) {
-    state.workMode = 'hibrido_sp';
-  } else {
-    state.workMode = 'remoto_br';
-  }
-  const workModeEl = document.getElementById('select-work-mode');
-  if (workModeEl) {
-    workModeEl.value = state.workMode;
+
+  const locEl = document.getElementById('select-location');
+  if (locEl) locEl.value = state.locationFilter;
+
+  document.querySelectorAll('#filter-modality-checks input[name="mod-check"]').forEach((chk) => {
+    chk.checked = state.workModes.includes(chk.value);
+  });
+
+  document.querySelectorAll('#filter-seniority-checks input[name="sen-check"]').forEach((chk) => {
+    chk.checked = state.selectedSeniorities.includes(chk.value);
+  });
+
+  const dateLabelEl = document.getElementById('date-filter-label');
+  if (dateLabelEl) {
+    dateLabelEl.textContent = DATE_POSTED_LABELS[state.datePosted] || 'Qualquer data';
   }
 }
 
@@ -129,6 +171,7 @@ if (themeBtnEl) themeBtnEl.addEventListener('click', toggleDayNightSwitch);
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   document.getElementById('toast-banner')?.classList.add('hidden');
+  document.getElementById('date-filter-popover')?.classList.add('hidden');
 
   const miniModals = [
     'scrape-confirm-modal-backdrop',
@@ -136,7 +179,8 @@ document.addEventListener('keydown', (e) => {
     'cert-edit-modal-backdrop',
     'edu-edit-modal-backdrop',
     'proj-edit-modal-backdrop',
-    'exp-edit-modal-backdrop'
+    'exp-edit-modal-backdrop',
+    'lang-edit-modal-backdrop'
   ];
   for (const id of miniModals) {
     const el = document.getElementById(id);
@@ -161,16 +205,18 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// Unified Seniority dropdown (filters Kanban & sets scrape seniority)
-document.getElementById('filter-seniority').addEventListener('change', (e) => {
-  state.seniorityFilter = e.target.value;
-  renderKanban();
+// Seniority Checkboxes (filters Kanban & sets scrape seniorities)
+document.querySelectorAll('#filter-seniority-checks input[name="sen-check"]').forEach((chk) => {
+  chk.addEventListener('change', () => {
+    state.selectedSeniorities = Array.from(
+      document.querySelectorAll('#filter-seniority-checks input[name="sen-check"]:checked')
+    ).map((el) => el.value);
+    renderKanban();
+  });
 });
 
-// Localização / Modalidade dropdown (outside Profile, next to Seniority)
-document.getElementById('select-work-mode').addEventListener('change', async (e) => {
-  state.workMode = e.target.value;
-  const mapped = WORK_MODE_LOCATIONS[state.workMode] || WORK_MODE_LOCATIONS.remoto_br;
+async function persistLocationAndModality() {
+  const mapped = buildLocationDisplay(state.locationFilter, state.workModes);
   await fetch('/api/profile/evolve', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -182,15 +228,99 @@ document.getElementById('select-work-mode').addEventListener('change', async (e)
     })
   });
   await loadBootstrap();
-  showToast(`Localização / Modalidade alterada para: ${mapped.pt}`);
+  showToast(`Local e Modalidade atualizados: ${mapped.pt}`);
+}
+
+// Separated Location dropdown (Brasil vs Global/LatAm)
+document.getElementById('select-location').addEventListener('change', async (e) => {
+  state.locationFilter = e.target.value;
+  await persistLocationAndModality();
 });
+
+// Separated Modality Checkboxes (Remoto, Híbrido, Presencial)
+document.querySelectorAll('#filter-modality-checks input[name="mod-check"]').forEach((chk) => {
+  chk.addEventListener('change', async () => {
+    const checked = Array.from(
+      document.querySelectorAll('#filter-modality-checks input[name="mod-check"]:checked')
+    ).map((el) => el.value);
+    if (checked.length === 0) {
+      chk.checked = true;
+      showToast('Selecione pelo menos uma modalidade (Remoto, Híbrido ou Presencial).');
+      return;
+    }
+    state.workModes = checked;
+    renderKanban();
+    await persistLocationAndModality();
+  });
+});
+
+// Date Posted Filter Button & Popover
+const dateFilterBtn = document.getElementById('btn-date-filter');
+const dateFilterPopover = document.getElementById('date-filter-popover');
+
+if (dateFilterBtn && dateFilterPopover) {
+  dateFilterBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    dateFilterPopover.classList.toggle('hidden');
+  });
+
+  document.querySelectorAll('#date-filter-popover .date-opt').forEach((optBtn) => {
+    optBtn.addEventListener('click', () => {
+      state.datePosted = optBtn.dataset.date || 'all';
+      document.querySelectorAll('#date-filter-popover .date-opt').forEach((b) =>
+        b.classList.toggle('active', b === optBtn)
+      );
+      document.getElementById('date-filter-label').textContent = DATE_POSTED_LABELS[state.datePosted] || 'Qualquer data';
+      dateFilterPopover.classList.add('hidden');
+      renderKanban();
+      showToast(`Filtro de data aplicado: ${DATE_POSTED_LABELS[state.datePosted]}`);
+    });
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!dateFilterPopover.classList.contains('hidden') && !e.target.closest('.date-filter-wrapper')) {
+      dateFilterPopover.classList.add('hidden');
+    }
+  });
+}
+
+function matchesDateFilter(job, dateFilter) {
+  if (!dateFilter || dateFilter === 'all') return true;
+  const iso = job.postedAt || job.createdAt;
+  if (!iso) return true;
+  const ts = new Date(iso).getTime();
+  if (Number.isNaN(ts)) return true;
+  const ageHours = (Date.now() - ts) / (1000 * 60 * 60);
+  if (dateFilter === '24h') return ageHours <= 24;
+  if (dateFilter === '3d') return ageHours <= 72;
+  if (dateFilter === '7d') return ageHours <= 24 * 7;
+  if (dateFilter === '30d') return ageHours <= 24 * 30;
+  return true;
+}
+
+function matchesModalityFilter(job, workModes) {
+  if (!workModes || workModes.length === 0 || workModes.length === 3) return true;
+  const sample = `${job.title} ${job.location} ${job.description}`.toLowerCase();
+  const isHybrid = /h[íi]brido|hybrid/i.test(sample);
+  const isPresencial = /presencial|on-site|onsite/i.test(sample);
+  const isRemote = /remoto|remote|home office|worldwide|anywhere/i.test(sample) || (!isHybrid && !isPresencial);
+
+  if (workModes.includes('remoto') && isRemote) return true;
+  if (workModes.includes('hibrido') && isHybrid) return true;
+  if (workModes.includes('presencial') && isPresencial) return true;
+  return false;
+}
 
 // Kanban Render + Native Drag and Drop
 function renderKanban() {
   const cols = ['abertas', 'em_processo', 'sem_sucesso', 'ruins'];
-  const filteredJobs = state.jobs.filter(
-    (j) => state.seniorityFilter === 'all' || j.seniority === state.seniorityFilter
-  );
+  const filteredJobs = state.jobs.filter((j) => {
+    const senMatch =
+      state.selectedSeniorities.length === 0 || state.selectedSeniorities.includes(j.seniority);
+    const dateMatch = matchesDateFilter(j, state.datePosted);
+    const modMatch = matchesModalityFilter(j, state.workModes);
+    return senMatch && dateMatch && modMatch;
+  });
 
   for (const col of cols) {
     const container = document.getElementById(`col-${col}`);
@@ -225,6 +355,7 @@ function renderKanban() {
       }
 
       const seniorityLabel = SENIORITY_LABELS[job.seniority] || 'Júnior / Pleno';
+      const postedBadge = formatPostedDateBadge(job.postedAt || job.createdAt);
 
       card.innerHTML = `
         <div class="job-card-top">
@@ -238,7 +369,8 @@ function renderKanban() {
         </div>
         <div class="job-card-meta">
           <span>${escapeHtmlClient(job.location)}</span> •
-          <span>${job.language === 'en' ? '🇺🇸 EN' : '🇧🇷 PT'}</span>
+          <span>${job.language === 'en' ? '🇺🇸 EN' : '🇧🇷 PT'}</span> •
+          <span class="date-tag">${escapeHtmlClient(postedBadge)}</span>
         </div>
         ${recruiterBadge}
       `;
@@ -469,19 +601,23 @@ async function executeJobScrape() {
   const originalText = btn.textContent;
   btn.disabled = true;
   btn.textContent = '⏳ Buscando Vagas...';
-  showToast('Buscando vagas reais com base no seu Título Profissional, Senioridade e Localização/Modalidade...');
+  const rawTitle = (state.profile?.titlePt || 'DevOps Engineer').split(/[|•–—/]/)[0].trim();
+  showToast(`Buscando vagas direcionadas pelo Título Profissional "${rawTitle}"...`);
   try {
     const res = await fetch('/api/jobs/scrape', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        seniorityFilter: state.seniorityFilter,
-        workMode: state.workMode
+        seniorities: state.selectedSeniorities,
+        locationFilter: state.locationFilter,
+        workModes: state.workModes,
+        datePosted: state.datePosted
       })
     });
     const data = await res.json();
     await loadBootstrap();
-    showToast(`Busca concluída! ${data.added || 0} novas vagas adicionadas (${data.total} no Kanban).`);
+    const usedTitle = data.roleTitleUsed || rawTitle;
+    showToast(`Busca concluída para "${usedTitle}"! ${data.added || 0} novas vagas (${data.total} no Kanban).`);
   } finally {
     btn.disabled = false;
     btn.textContent = originalText;
@@ -492,8 +628,13 @@ document.getElementById('btn-scrape').addEventListener('click', async () => {
   if (!hasConfirmedFirstSearch) {
     const rawTitle = (state.profile?.titlePt || 'DevOps Engineer').split(/[|•–—/]/)[0].trim();
     document.getElementById('confirm-scrape-title').textContent = rawTitle || 'DevOps Engineer';
-    document.getElementById('confirm-scrape-seniority').value = state.seniorityFilter || 'all';
-    document.getElementById('confirm-scrape-workmode').value = state.workMode || 'remoto_br';
+    document.getElementById('confirm-scrape-location').value = state.locationFilter || 'br';
+    document.querySelectorAll('#confirm-seniority-checks input[name="confirm-sen-check"]').forEach((chk) => {
+      chk.checked = state.selectedSeniorities.includes(chk.value);
+    });
+    document.querySelectorAll('#confirm-modality-checks input[name="confirm-mod-check"]').forEach((chk) => {
+      chk.checked = state.workModes.includes(chk.value);
+    });
     document.getElementById('scrape-confirm-modal-backdrop').classList.remove('hidden');
     return;
   }
@@ -507,14 +648,25 @@ document.getElementById('btn-cancel-scrape-confirm').addEventListener('click', (
   document.getElementById('scrape-confirm-modal-backdrop').classList.add('hidden');
 });
 document.getElementById('btn-confirm-scrape-run').addEventListener('click', async () => {
+  const checkedMods = Array.from(
+    document.querySelectorAll('#confirm-modality-checks input[name="confirm-mod-check"]:checked')
+  ).map((el) => el.value);
+  if (checkedMods.length === 0) {
+    showToast('Selecione pelo menos uma modalidade (Remoto, Híbrido ou Presencial).');
+    return;
+  }
+
   hasConfirmedFirstSearch = true;
-  state.seniorityFilter = document.getElementById('confirm-scrape-seniority').value;
-  state.workMode = document.getElementById('confirm-scrape-workmode').value;
-  document.getElementById('filter-seniority').value = state.seniorityFilter;
-  document.getElementById('select-work-mode').value = state.workMode;
+  state.selectedSeniorities = Array.from(
+    document.querySelectorAll('#confirm-seniority-checks input[name="confirm-sen-check"]:checked')
+  ).map((el) => el.value);
+  state.locationFilter = document.getElementById('confirm-scrape-location').value;
+  state.workModes = checkedMods;
+
+  renderHeader();
   document.getElementById('scrape-confirm-modal-backdrop').classList.add('hidden');
 
-  const mapped = WORK_MODE_LOCATIONS[state.workMode] || WORK_MODE_LOCATIONS.remoto_br;
+  const mapped = buildLocationDisplay(state.locationFilter, state.workModes);
   await fetch('/api/profile/evolve', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -601,7 +753,7 @@ function renderProfileModalContent() {
   document.getElementById('prof-github').value = p.github || '';
   document.getElementById('prof-title-pt').value = p.titlePt || '';
 
-  // Languages inside Tab 1 (Dados Pessoais)
+  // Languages inside Tab 1 (Dados Pessoais) — with Pencil ✏️ Edit & Delete
   const langsEl = document.getElementById('langs-list');
   if (langsEl) {
     langsEl.innerHTML = '';
@@ -613,10 +765,24 @@ function renderProfileModalContent() {
           <strong>🗣️ ${escapeHtmlClient(lg.language)}</strong>
           <span class="seniority-tag" style="margin-left:8px;">${escapeHtmlClient(lg.proficiency)}</span>
         </div>
-        <button type="button" class="btn btn-xs btn-danger" data-del-lang="${lg.id}" title="Remover Idioma">✕</button>
+        <div style="display:flex; gap:6px; flex-shrink:0;">
+          <button type="button" class="btn btn-xs btn-secondary" data-edit-lang="${lg.id}" title="Editar Idioma">✏️</button>
+          <button type="button" class="btn btn-xs btn-danger" data-del-lang="${lg.id}" title="Remover Idioma">✕</button>
+        </div>
       `;
       langsEl.appendChild(row);
     }
+    langsEl.querySelectorAll('[data-edit-lang]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = Number(btn.dataset.editLang);
+        const lg = (state.profile?.languages || []).find((x) => x.id === id);
+        if (!lg) return;
+        document.getElementById('edit-lang-id').value = String(lg.id);
+        document.getElementById('edit-lang-name').value = lg.language || '';
+        document.getElementById('edit-lang-prof').value = lg.proficiency || 'Intermediário';
+        document.getElementById('lang-edit-modal-backdrop').classList.remove('hidden');
+      });
+    });
     langsEl.querySelectorAll('[data-del-lang]').forEach((btn) => {
       btn.addEventListener('click', async () => {
         await fetch('/api/profile/languages', {
@@ -642,10 +808,10 @@ function renderProfileModalContent() {
         <div style="flex:1; min-width:0;">
           <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
             <strong>💼 ${escapeHtmlClient(ex.role)}</strong>
-            <span class="tag-chip">${escapeHtmlClient(ex.company)}</span>
+            ${ex.company ? `<span class="tag-chip">${escapeHtmlClient(ex.company)}</span>` : ''}
             ${ex.period ? `<span class="seniority-tag">${escapeHtmlClient(ex.period)}</span>` : ''}
           </div>
-          <div style="font-size:12px; color:var(--muted); margin-top:4px; line-height:1.4;">
+          <div style="font-size:12px; color:var(--muted); margin-top:4px; line-height:1.45; white-space:pre-line;">
             ${escapeHtmlClient(ex.descriptionPt)}
           </div>
         </div>
@@ -666,7 +832,6 @@ function renderProfileModalContent() {
         document.getElementById('edit-exp-company').value = exp.company || '';
         document.getElementById('edit-exp-period').value = exp.period || '';
         document.getElementById('edit-exp-pt').value = exp.descriptionPt || '';
-        document.getElementById('edit-exp-en').value = exp.descriptionEn || '';
         document.getElementById('exp-edit-modal-backdrop').classList.remove('hidden');
       });
     });
@@ -703,7 +868,7 @@ function renderProfileModalContent() {
           <span class="seniority-tag">${escapeHtmlClient(LEVEL_BADGES[s.level] || s.level)}</span>
         </div>
         <div style="font-size:12px; color:var(--muted); margin-top:4px; line-height:1.4;">
-          🇧🇷 ${escapeHtmlClient(s.honestFramingPt)}
+          ${escapeHtmlClient(s.honestFramingPt)}
         </div>
       </div>
       <div style="display:flex; gap:6px; flex-shrink:0;">
@@ -724,7 +889,6 @@ function renderProfileModalContent() {
       document.getElementById('edit-skill-cat').value = skill.category || '';
       document.getElementById('edit-skill-level').value = skill.level || 'practical';
       document.getElementById('edit-skill-pt').value = skill.honestFramingPt || '';
-      document.getElementById('edit-skill-en').value = skill.honestFramingEn || '';
       document.getElementById('skill-edit-modal-backdrop').classList.remove('hidden');
     });
   });
@@ -870,7 +1034,6 @@ function renderProfileModalContent() {
       document.getElementById('edit-proj-stack').value = (pr.techStack || []).join(', ');
       document.getElementById('edit-proj-url').value = pr.url || '';
       document.getElementById('edit-proj-pt').value = pr.descriptionPt || '';
-      document.getElementById('edit-proj-en').value = pr.descriptionEn || '';
       document.getElementById('proj-edit-modal-backdrop').classList.remove('hidden');
     });
   });
@@ -1009,23 +1172,45 @@ document.getElementById('btn-add-lang').addEventListener('click', async () => {
   showToast(`Idioma "${language}" adicionado!`);
 });
 
+// Mini Popup handlers for Editing Language
+document.getElementById('btn-close-lang-edit-modal').addEventListener('click', () => {
+  document.getElementById('lang-edit-modal-backdrop').classList.add('hidden');
+});
+document.getElementById('btn-cancel-lang-edit').addEventListener('click', () => {
+  document.getElementById('lang-edit-modal-backdrop').classList.add('hidden');
+});
+document.getElementById('btn-save-lang-edit').addEventListener('click', async () => {
+  const editId = Number(document.getElementById('edit-lang-id').value);
+  if (!editId) return;
+  const language = document.getElementById('edit-lang-name').value.trim();
+  const proficiency = document.getElementById('edit-lang-prof').value;
+  if (!language) return;
+  await fetch('/api/profile/languages', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ editId, language, proficiency })
+  });
+  document.getElementById('lang-edit-modal-backdrop').classList.add('hidden');
+  await loadBootstrap();
+  renderProfileModalContent();
+  showToast(`Idioma "${language}" atualizado com sucesso!`);
+});
+
 document.getElementById('btn-add-exp').addEventListener('click', async () => {
   const role = document.getElementById('new-exp-role').value.trim();
   const company = document.getElementById('new-exp-company').value.trim();
   const period = document.getElementById('new-exp-period').value.trim();
   const descriptionPt = document.getElementById('new-exp-pt').value.trim();
-  const descriptionEn = document.getElementById('new-exp-en').value.trim();
   if (!role || !company) return;
   await fetch('/api/profile/experiences', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ role, company, period, descriptionPt, descriptionEn })
+    body: JSON.stringify({ role, company, period, descriptionPt })
   });
   document.getElementById('new-exp-role').value = '';
   document.getElementById('new-exp-company').value = '';
   document.getElementById('new-exp-period').value = '';
   document.getElementById('new-exp-pt').value = '';
-  document.getElementById('new-exp-en').value = '';
   await loadBootstrap();
   renderProfileModalContent();
   showToast('Experiência profissional adicionada!');
@@ -1045,11 +1230,10 @@ document.getElementById('btn-save-exp-edit').addEventListener('click', async () 
   const company = document.getElementById('edit-exp-company').value.trim();
   const period = document.getElementById('edit-exp-period').value.trim();
   const descriptionPt = document.getElementById('edit-exp-pt').value.trim();
-  const descriptionEn = document.getElementById('edit-exp-en').value.trim();
   await fetch('/api/profile/experiences', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ editId, role, company, period, descriptionPt, descriptionEn })
+    body: JSON.stringify({ editId, role, company, period, descriptionPt })
   });
   document.getElementById('exp-edit-modal-backdrop').classList.add('hidden');
   await loadBootstrap();
@@ -1063,15 +1247,13 @@ document.getElementById('btn-add-skill').addEventListener('click', async () => {
   const category = document.getElementById('new-skill-cat').value.trim() || 'DevOps / Cloud';
   const level = document.getElementById('new-skill-level').value;
   const honestFramingPt = document.getElementById('new-skill-pt').value.trim();
-  const honestFramingEn = document.getElementById('new-skill-en').value.trim();
   await fetch('/api/profile/evolve', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ newSkillName, category, level, honestFramingPt, honestFramingEn })
+    body: JSON.stringify({ newSkillName, category, level, honestFramingPt })
   });
   document.getElementById('new-skill-name').value = '';
   document.getElementById('new-skill-pt').value = '';
-  document.getElementById('new-skill-en').value = '';
   await loadBootstrap();
   renderProfileModalContent();
   showToast(`Habilidade "${newSkillName}" adicionada!`);
@@ -1091,7 +1273,6 @@ document.getElementById('btn-save-skill-edit').addEventListener('click', async (
   const category = document.getElementById('edit-skill-cat').value.trim() || 'DevOps / Cloud';
   const level = document.getElementById('edit-skill-level').value;
   const honestFramingPt = document.getElementById('edit-skill-pt').value.trim();
-  const honestFramingEn = document.getElementById('edit-skill-en').value.trim();
 
   await fetch('/api/profile/evolve', {
     method: 'POST',
@@ -1101,8 +1282,7 @@ document.getElementById('btn-save-skill-edit').addEventListener('click', async (
       name,
       category,
       level,
-      honestFramingPt,
-      honestFramingEn
+      honestFramingPt
     })
   });
   document.getElementById('skill-edit-modal-backdrop').classList.add('hidden');
@@ -1223,11 +1403,10 @@ document.getElementById('btn-save-proj-edit').addEventListener('click', async ()
   const techStack = document.getElementById('edit-proj-stack').value.trim();
   const url = document.getElementById('edit-proj-url').value.trim();
   const descriptionPt = document.getElementById('edit-proj-pt').value.trim();
-  const descriptionEn = document.getElementById('edit-proj-en').value.trim();
   await fetch('/api/profile/projects', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ editId, name, techStack, url, descriptionPt, descriptionEn })
+    body: JSON.stringify({ editId, name, techStack, url, descriptionPt })
   });
   document.getElementById('proj-edit-modal-backdrop').classList.add('hidden');
   await loadBootstrap();
@@ -1240,18 +1419,16 @@ document.getElementById('btn-add-proj').addEventListener('click', async () => {
   const techStack = document.getElementById('new-proj-stack').value.trim();
   const url = document.getElementById('new-proj-url').value.trim();
   const descriptionPt = document.getElementById('new-proj-pt').value.trim();
-  const descriptionEn = document.getElementById('new-proj-en').value.trim();
   if (!name || !descriptionPt) return;
   await fetch('/api/profile/projects', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ name, techStack, url, descriptionPt, descriptionEn })
+    body: JSON.stringify({ name, techStack, url, descriptionPt })
   });
   document.getElementById('new-proj-name').value = '';
   document.getElementById('new-proj-stack').value = '';
   document.getElementById('new-proj-url').value = '';
   document.getElementById('new-proj-pt').value = '';
-  document.getElementById('new-proj-en').value = '';
   await loadBootstrap();
   renderProfileModalContent();
   showToast('Projeto pessoal adicionado!');

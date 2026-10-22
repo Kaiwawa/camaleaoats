@@ -111,6 +111,7 @@ export interface NewJobInput {
   recruiterName?: string;
   recruiterUrl?: string;
   recruiterEmail?: string;
+  postedAt?: string;
 }
 
 export interface Job {
@@ -131,6 +132,7 @@ export interface Job {
   recruiterEmail: string;
   recruiterStatus: RecruiterStatus;
   appliedAt?: string;
+  postedAt: string;
   createdAt: string;
 }
 

@@ -12,6 +12,9 @@ import {
 import { generateAtsPdfBuffer } from './pdf-generator.ts';
 
 export type WorkModeFilter = 'remoto_br' | 'remoto_global' | 'hibrido_br' | 'hibrido_sp' | 'presencial_br';
+export type LocationScope = 'br' | 'global';
+export type ModalityOption = 'remoto' | 'hibrido' | 'presencial';
+export type DatePostedFilter = 'all' | '24h' | '3d' | '7d' | '30d';
 
 let scrapePageOffset = 0;
 
@@ -48,20 +51,21 @@ function stripHtmlTags(html: string): string {
 
 export function buildSearchQueryFromProfile(
   profile: Profile,
-  seniorityFilter: string = 'all',
-  workMode: WorkModeFilter = 'remoto_br'
-): { keywords: string; location: string; remoteFilter: string; roleTitle: string } {
-  // Extract the primary professional title from profile.titlePt (e.g. "DevOps Engineer" from "DevOps Engineer | Cloud AWS...")
+  seniorityFilter: string | string[] = 'all',
+  workMode: WorkModeFilter = 'remoto_br',
+  extra?: {
+    seniorities?: string[];
+    locationFilter?: LocationScope;
+    workModes?: ModalityOption[];
+    datePosted?: DatePostedFilter;
+  }
+): { keywords: string; location: string; remoteFilter: string; roleTitle: string; timePostedParam: string } {
+  // Primary search driver is strictly the user's Título Profissional (profile.titlePt)
   const rawTitle = (profile.titlePt || 'DevOps Engineer')
     .split(/[|•–—/]/)[0]
     .replace(/\s*\(.*?\)/g, '')
     .trim();
   const roleTitle = rawTitle || 'DevOps Engineer';
-
-  const topSkills = profile.skills
-    .filter((s) => s.level === 'solid' || s.level === 'practical')
-    .slice(0, 2)
-    .map((s) => s.name.replace(/\s*\(.*?\)/g, '').split('&')[0].trim());
 
   const seniorityMap: Record<string, string> = {
     all: '',
@@ -73,20 +77,57 @@ export function buildSearchQueryFromProfile(
     especialista: 'Especialista'
   };
 
-  const senKeyword = seniorityMap[seniorityFilter] ?? '';
-  const skillString = topSkills.length > 0 ? topSkills.join(' ') : 'AWS Docker';
-  const keywords = [roleTitle, senKeyword, skillString].filter(Boolean).join(' ').trim();
+  let senKeyword = '';
+  const senList = extra?.seniorities?.length
+    ? extra.seniorities
+    : Array.isArray(seniorityFilter)
+    ? seniorityFilter
+    : seniorityFilter && seniorityFilter !== 'all'
+    ? [seniorityFilter]
+    : [];
 
-  if (workMode === 'remoto_global') {
-    return { keywords: [roleTitle, senKeyword, skillString].filter(Boolean).join(' ').trim(), location: 'Worldwide', remoteFilter: '2', roleTitle };
+  if (senList.length > 0 && senList.length < 6) {
+    senKeyword = senList
+      .map((s) => seniorityMap[s] || '')
+      .filter(Boolean)
+      .slice(0, 2)
+      .join(' ');
   }
-  if (workMode === 'hibrido_br' || workMode === 'hibrido_sp') {
-    return { keywords, location: 'Brazil', remoteFilter: '3', roleTitle };
+
+  const keywords = [roleTitle, senKeyword].filter(Boolean).join(' ').trim();
+
+  // Map Modalities (Checkboxes: Remoto='2', Híbrido='3', Presencial='1')
+  const modeToCode: Record<ModalityOption, string> = {
+    remoto: '2',
+    hibrido: '3',
+    presencial: '1'
+  };
+
+  let remoteFilter = '2';
+  if (extra?.workModes && extra.workModes.length > 0) {
+    remoteFilter = extra.workModes.map((m) => modeToCode[m] || '2').join(',');
+  } else if (workMode === 'hibrido_br' || workMode === 'hibrido_sp') {
+    remoteFilter = '3';
+  } else if (workMode === 'presencial_br') {
+    remoteFilter = '1';
   }
-  if (workMode === 'presencial_br') {
-    return { keywords, location: 'Brazil', remoteFilter: '1', roleTitle };
+
+  // Map Location (Brasil vs Global/LatAm)
+  let location = 'Brazil';
+  if (extra?.locationFilter === 'global' || workMode === 'remoto_global') {
+    location = 'Worldwide';
   }
-  return { keywords, location: 'Brazil', remoteFilter: '2', roleTitle };
+
+  // Map Date Posted filter to LinkedIn f_TPR parameter
+  const tprMap: Record<string, string> = {
+    '24h': 'r86400',
+    '3d': 'r259200',
+    '7d': 'r604800',
+    '30d': 'r2592000'
+  };
+  const timePostedParam = extra?.datePosted ? tprMap[extra.datePosted] || '' : '';
+
+  return { keywords, location, remoteFilter, roleTitle, timePostedParam };
 }
 
 export function parseLinkedInGuestSearchHtml(html: string): Array<{
@@ -95,9 +136,10 @@ export function parseLinkedInGuestSearchHtml(html: string): Array<{
   company: string;
   location: string;
   url: string;
+  postedAt: string;
 }> {
   const cards = html.split('<li').slice(1);
-  const results: Array<{ jobId: string; title: string; company: string; location: string; url: string }> = [];
+  const results: Array<{ jobId: string; title: string; company: string; location: string; url: string; postedAt: string }> = [];
 
   for (const card of cards) {
     const idMatch = card.match(/data-entity-urn="urn:li:jobPosting:(\d+)"/);
@@ -105,6 +147,7 @@ export function parseLinkedInGuestSearchHtml(html: string): Array<{
     const companyMatch = card.match(/base-search-card__subtitle[^>]*>([\s\S]*?)<\/h4>/i);
     const locMatch = card.match(/job-search-card__location[^>]*>([\s\S]*?)<\/span>/i);
     const linkMatch = card.match(/href="(https:\/\/[^"?]+linkedin\.com\/jobs\/view\/[^"?]+)/i);
+    const dateMatch = card.match(/<time[^>]*datetime="([^"]+)"/i);
 
     if (!idMatch || !titleMatch) continue;
     const jobId = idMatch[1];
@@ -112,8 +155,9 @@ export function parseLinkedInGuestSearchHtml(html: string): Array<{
     const company = companyMatch ? stripHtmlTags(companyMatch[1]) : 'Empresa no LinkedIn';
     const location = locMatch ? stripHtmlTags(locMatch[1]) : 'Remoto';
     const url = linkMatch ? linkMatch[1] : `https://www.linkedin.com/jobs/view/${jobId}`;
+    const postedAt = dateMatch ? new Date(dateMatch[1].trim()).toISOString() : new Date().toISOString();
 
-    results.push({ jobId, title, company, location, url });
+    results.push({ jobId, title, company, location, url, postedAt });
   }
 
   return results;
@@ -122,27 +166,48 @@ export function parseLinkedInGuestSearchHtml(html: string): Array<{
 export async function collectRemoteDevOpsJobs(
   db: AppDatabase,
   fetchImpl: typeof fetch = fetch,
-  options: { seniorityFilter?: string; workMode?: WorkModeFilter } = {}
-): Promise<{ added: number; total: number; jobs: Job[]; sourceSummary: string[] }> {
+  options: {
+    seniorityFilter?: string;
+    seniorities?: string[];
+    workMode?: WorkModeFilter;
+    locationFilter?: LocationScope;
+    workModes?: ModalityOption[];
+    datePosted?: DatePostedFilter;
+  } = {}
+): Promise<{
+  added: number;
+  total: number;
+  jobs: Job[];
+  sourceSummary: string[];
+  roleTitleUsed: string;
+  queryUsed: string;
+}> {
   const beforeCount = db.listJobs().length;
   const profile = db.getProfile();
   const weights = db.getPreferenceWeights();
   const query = buildSearchQueryFromProfile(
     profile,
     options.seniorityFilter || 'all',
-    options.workMode || 'remoto_br'
+    options.workMode || 'remoto_br',
+    {
+      seniorities: options.seniorities,
+      locationFilter: options.locationFilter,
+      workModes: options.workModes,
+      datePosted: options.datePosted
+    }
   );
 
   const candidates: NewJobInput[] = [];
   const sourceSummary: string[] = [];
 
-  // 1. Live LinkedIn Guest Jobs Search based on the user's Profile, Seniority & Work Mode
+  // 1. Live LinkedIn Guest Jobs Search directed by the user's Título Profissional, Seniority, Location, Modality & Date Posted
   try {
     const startOffset = scrapePageOffset;
     scrapePageOffset = (scrapePageOffset + 10) % 40;
+    const tprPart = query.timePostedParam ? `&f_TPR=${query.timePostedParam}` : '';
     const liSearchUrl = `https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=${encodeURIComponent(
       query.keywords
-    )}&location=${encodeURIComponent(query.location)}&f_WT=${query.remoteFilter}&start=${startOffset}`;
+    )}&location=${encodeURIComponent(query.location)}&f_WT=${encodeURIComponent(query.remoteFilter)}${tprPart}&start=${startOffset}`;
 
     const liResp = await fetchImpl(liSearchUrl, {
       headers: {
@@ -162,6 +227,7 @@ export async function collectRemoteDevOpsJobs(
             url?: string;
             candidate_required_location?: string;
             description?: string;
+            publication_date?: string;
           }>;
         };
         for (const item of json.jobs || []) {
@@ -172,7 +238,8 @@ export async function collectRemoteDevOpsJobs(
             url: item.url,
             platform: detectPlatformFromUrl(item.url),
             location: item.candidate_required_location || '100% Remote',
-            description: stripHtmlTags(item.description || item.title)
+            description: stripHtmlTags(item.description || item.title),
+            postedAt: item.publication_date ? new Date(item.publication_date).toISOString() : new Date().toISOString()
           });
         }
       } else {
@@ -198,13 +265,22 @@ export async function collectRemoteDevOpsJobs(
             } catch {
               // Keep card summary if detail call fails
             }
+            const modeLabel =
+              query.remoteFilter === '2'
+                ? 'Remoto'
+                : query.remoteFilter === '3'
+                ? 'Híbrido'
+                : query.remoteFilter === '1'
+                ? 'Presencial'
+                : '';
             return {
               title: card.title,
               company: card.company,
               url: card.url,
               platform: detectPlatformFromUrl(card.url, fullDesc),
-              location: query.remoteFilter === '2' ? `${card.location} (Remoto)` : card.location,
-              description: fullDesc
+              location: modeLabel && !card.location.toLowerCase().includes(modeLabel.toLowerCase()) ? `${card.location} (${modeLabel})` : card.location,
+              description: fullDesc,
+              postedAt: card.postedAt
             };
           })
         );
@@ -215,9 +291,10 @@ export async function collectRemoteDevOpsJobs(
     // Continue to secondary feeds
   }
 
-  // 2. Live Jobicy Remote DevOps API
+  // 2. Live Jobicy Remote API directed by roleTitle
   try {
-    const jobicyResp = await fetchImpl('https://jobicy.com/api/v2/remote-jobs?count=6&tag=devops', {
+    const roleSlug = query.roleTitle.toLowerCase().split(/\s+/)[0] || 'devops';
+    const jobicyResp = await fetchImpl(`https://jobicy.com/api/v2/remote-jobs?count=6&tag=${encodeURIComponent(roleSlug)}`, {
       headers: { 'user-agent': 'CamaleaoATS/1.0' }
     });
     if (jobicyResp.ok) {
@@ -228,10 +305,11 @@ export async function collectRemoteDevOpsJobs(
           url?: string;
           jobGeo?: string;
           jobDescription?: string;
+          pubDate?: string;
         }>;
       };
       if (Array.isArray(data.jobs)) {
-        sourceSummary.push(`Jobicy Remote (${data.jobs.length} vagas)`);
+        sourceSummary.push(`Jobicy Remote (${data.jobs.length} vagas para "${roleSlug}")`);
         for (const item of data.jobs.slice(0, 5)) {
           if (!item.jobTitle || !item.companyName || !item.url) continue;
           candidates.push({
@@ -240,7 +318,8 @@ export async function collectRemoteDevOpsJobs(
             url: item.url,
             platform: detectPlatformFromUrl(item.url),
             location: `100% Remote (${item.jobGeo || 'Worldwide'})`,
-            description: stripHtmlTags(item.jobDescription || item.jobTitle)
+            description: stripHtmlTags(item.jobDescription || item.jobTitle),
+            postedAt: item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString()
           });
         }
       }
@@ -249,11 +328,14 @@ export async function collectRemoteDevOpsJobs(
     // Continue
   }
 
-  // 3. Live Remotive API
+  // 3. Live Remotive API directed by roleTitle
   try {
-    const remResp = await fetchImpl('https://remotive.com/api/remote-jobs?category=devops-sysadmin&limit=6', {
-      headers: { 'user-agent': 'CamaleaoATS/1.0' }
-    });
+    const remResp = await fetchImpl(
+      `https://remotive.com/api/remote-jobs?search=${encodeURIComponent(query.roleTitle)}&limit=6`,
+      {
+        headers: { 'user-agent': 'CamaleaoATS/1.0' }
+      }
+    );
     if (remResp.ok) {
       const payload = (await remResp.json()) as {
         jobs?: Array<{
@@ -262,10 +344,11 @@ export async function collectRemoteDevOpsJobs(
           url?: string;
           candidate_required_location?: string;
           description?: string;
+          publication_date?: string;
         }>;
       };
       if (Array.isArray(payload.jobs)) {
-        sourceSummary.push(`Remotive (${payload.jobs.length} vagas)`);
+        sourceSummary.push(`Remotive (${payload.jobs.length} vagas para "${query.roleTitle}")`);
         for (const item of payload.jobs.slice(0, 5)) {
           if (!item.title || !item.company_name || !item.url) continue;
           candidates.push({
@@ -274,7 +357,8 @@ export async function collectRemoteDevOpsJobs(
             url: item.url,
             platform: detectPlatformFromUrl(item.url),
             location: item.candidate_required_location || '100% Remote',
-            description: stripHtmlTags(item.description || item.title)
+            description: stripHtmlTags(item.description || item.title),
+            postedAt: item.publication_date ? new Date(item.publication_date).toISOString() : new Date().toISOString()
           });
         }
       }
@@ -287,24 +371,26 @@ export async function collectRemoteDevOpsJobs(
   if (candidates.length === 0) {
     candidates.push(
       {
-        title: 'DevOps Engineer Jr / Pleno (100% Remoto)',
+        title: `${query.roleTitle} Jr / Pleno (100% Remoto)`,
         company: 'CloudPulse Brasil',
         url: 'https://cloudpulse.inhire.app/vagas/devops-aws-argocd-remoto',
         platform: 'InHire',
         location: '100% Remoto (Brasil)',
         language: 'pt-BR',
         description:
-          'Buscamos pessoa engenheira DevOps (100% Remoto) com Docker, AWS (SAA-C03), GitHub Actions, ArgoCD e Kubernetes YAML.'
+          'Buscamos pessoa engenheira DevOps (100% Remoto) com Docker, AWS (SAA-C03), GitHub Actions, ArgoCD e Kubernetes YAML.',
+        postedAt: new Date().toISOString()
       },
       {
-        title: 'Analista SRE / DevOps Cloud (100% Remoto)',
+        title: `Analista SRE / ${query.roleTitle} (100% Remoto)`,
         company: 'PagFácil Tecnologia',
         url: 'https://pagfacil.gupy.io/jobs/8841209',
         platform: 'Gupy',
         location: '100% Remoto',
         language: 'pt-BR',
         description:
-          'Vaga 100% remota na Gupy para atuar com Cloud AWS, Docker, GitHub Actions, ArgoCD, Kubernetes YAML, Terraform e Grafana.'
+          'Vaga 100% remota na Gupy para atuar com Cloud AWS, Docker, GitHub Actions, ArgoCD, Kubernetes YAML, Terraform e Grafana.',
+        postedAt: new Date().toISOString()
       }
     );
   }
@@ -336,7 +422,9 @@ export async function collectRemoteDevOpsJobs(
     added: Math.max(0, allJobs.length - beforeCount),
     total: allJobs.length,
     jobs: allJobs,
-    sourceSummary
+    sourceSummary,
+    roleTitleUsed: query.roleTitle,
+    queryUsed: query.keywords
   };
 }
 

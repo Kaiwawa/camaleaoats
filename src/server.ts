@@ -9,13 +9,17 @@ import {
   extractProfileFromCvText,
   extractTextFromPdfBuffer,
   generateHonestTailoredCv,
-  generateRecruiterMessages
+  generateRecruiterMessages,
+  translateCvText
 } from './ats-engine.ts';
 import { generateAtsPdfBuffer } from './pdf-generator.ts';
 import {
   collectRemoteDevOpsJobs,
   ingestJobFromUrlOrText,
-  runAutoApplication
+  runAutoApplication,
+  type DatePostedFilter,
+  type LocationScope,
+  type ModalityOption
 } from './scraper-and-applier.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -73,11 +77,24 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
       if (method === 'POST' && pathname === '/api/jobs/scrape') {
         const body = await readJsonBody(req);
         const seniorityFilter = body.seniorityFilter ? (String(body.seniorityFilter) as JobSeniority | 'all') : 'all';
+        const seniorities = Array.isArray(body.seniorities) ? body.seniorities.map(String) : undefined;
         const workMode = body.workMode
           ? (String(body.workMode) as 'remoto_br' | 'remoto_global' | 'hibrido_sp')
           : 'remoto_br';
+        const locationFilter = body.locationFilter ? (String(body.locationFilter) as LocationScope) : undefined;
+        const workModes = Array.isArray(body.workModes)
+          ? (body.workModes.map(String) as ModalityOption[])
+          : undefined;
+        const datePosted = body.datePosted ? (String(body.datePosted) as DatePostedFilter) : undefined;
         db.deleteDemoJobs();
-        const result = await collectRemoteDevOpsJobs(db, fetch, { seniorityFilter, workMode });
+        const result = await collectRemoteDevOpsJobs(db, fetch, {
+          seniorityFilter,
+          seniorities,
+          workMode,
+          locationFilter,
+          workModes,
+          datePosted
+        });
         return sendJson(res, 200, result);
       }
 
@@ -268,11 +285,17 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
                     .map((s) => s.trim())
                     .filter(Boolean)
               : undefined;
+          const rawDesc = body.description !== undefined ? String(body.description) : body.descriptionPt !== undefined ? String(body.descriptionPt) : undefined;
           db.updatePersonalProject(Number(body.editId), {
             name: body.name !== undefined ? String(body.name) : undefined,
             techStack: stack,
-            descriptionPt: body.descriptionPt !== undefined ? String(body.descriptionPt) : undefined,
-            descriptionEn: body.descriptionEn !== undefined ? String(body.descriptionEn) : undefined,
+            descriptionPt: rawDesc !== undefined ? translateCvText(rawDesc, 'pt-BR') : undefined,
+            descriptionEn:
+              body.descriptionEn !== undefined && body.descriptionEn !== body.descriptionPt
+                ? String(body.descriptionEn)
+                : rawDesc !== undefined
+                ? translateCvText(rawDesc, 'en')
+                : undefined,
             url: body.url !== undefined ? String(body.url) : undefined
           });
         } else if (body.name) {
@@ -282,11 +305,15 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
                 .split(',')
                 .map((s) => s.trim())
                 .filter(Boolean);
+          const rawDesc = String(body.description ?? body.descriptionPt ?? '');
           db.addPersonalProject({
             name: String(body.name),
             techStack: stack.length ? stack : ['DevOps'],
-            descriptionPt: String(body.descriptionPt ?? ''),
-            descriptionEn: String(body.descriptionEn || body.descriptionPt || ''),
+            descriptionPt: translateCvText(rawDesc, 'pt-BR'),
+            descriptionEn:
+              body.descriptionEn && body.descriptionEn !== body.descriptionPt
+                ? String(body.descriptionEn)
+                : translateCvText(rawDesc, 'en'),
             url: String(body.url ?? '')
           });
         }
@@ -297,6 +324,11 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
         const body = await readJsonBody(req);
         if (body.deleteId) {
           db.deleteLanguage(Number(body.deleteId));
+        } else if (body.editId) {
+          db.updateLanguage(Number(body.editId), {
+            language: body.language !== undefined ? String(body.language) : undefined,
+            proficiency: body.proficiency !== undefined ? String(body.proficiency) : undefined
+          });
         } else if (body.language) {
           db.addLanguage({
             language: String(body.language),
@@ -311,20 +343,35 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
         if (body.deleteId) {
           db.deleteExperience(Number(body.deleteId));
         } else if (body.editId) {
+          const rawSummary =
+            body.summary !== undefined
+              ? String(body.summary)
+              : body.descriptionPt !== undefined
+              ? String(body.descriptionPt)
+              : undefined;
           db.updateExperience(Number(body.editId), {
             role: body.role !== undefined ? String(body.role) : undefined,
             company: body.company !== undefined ? String(body.company) : undefined,
             period: body.period !== undefined ? String(body.period) : undefined,
-            descriptionPt: body.descriptionPt !== undefined ? String(body.descriptionPt) : undefined,
-            descriptionEn: body.descriptionEn !== undefined ? String(body.descriptionEn) : undefined
+            descriptionPt: rawSummary !== undefined ? translateCvText(rawSummary, 'pt-BR') : undefined,
+            descriptionEn:
+              body.descriptionEn !== undefined && body.descriptionEn !== body.descriptionPt
+                ? String(body.descriptionEn)
+                : rawSummary !== undefined
+                ? translateCvText(rawSummary, 'en')
+                : undefined
           });
         } else if (body.role && body.company) {
+          const rawSummary = String(body.summary ?? body.descriptionPt ?? '');
           db.addExperience({
             role: String(body.role),
             company: String(body.company),
             period: String(body.period ?? ''),
-            descriptionPt: String(body.descriptionPt ?? ''),
-            descriptionEn: String(body.descriptionEn || body.descriptionPt || '')
+            descriptionPt: translateCvText(rawSummary, 'pt-BR'),
+            descriptionEn:
+              body.descriptionEn && body.descriptionEn !== body.descriptionPt
+                ? String(body.descriptionEn)
+                : translateCvText(rawSummary, 'en')
           });
         }
         rescoreAllJobs();
@@ -336,15 +383,29 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
         if (body.deleteSkillId) {
           db.deleteSkill(Number(body.deleteSkillId));
         } else if (body.skillId) {
+          const rawFraming =
+            body.description !== undefined
+              ? String(body.description)
+              : body.honestFramingPt !== undefined
+              ? String(body.honestFramingPt)
+              : undefined;
           db.evolveSkill(Number(body.skillId), {
             name: body.name ? String(body.name) : undefined,
             category: body.category ? String(body.category) : undefined,
             level: body.level ? (String(body.level) as SkillLevel) : undefined,
-            honestFramingPt: body.honestFramingPt ? String(body.honestFramingPt) : undefined,
-            honestFramingEn: body.honestFramingEn ? String(body.honestFramingEn) : undefined,
+            honestFramingPt: rawFraming !== undefined ? translateCvText(rawFraming, 'pt-BR') : undefined,
+            honestFramingEn:
+              body.honestFramingEn && body.honestFramingEn !== body.honestFramingPt
+                ? String(body.honestFramingEn)
+                : rawFraming !== undefined
+                ? translateCvText(rawFraming, 'en')
+                : undefined,
             projectNote: body.projectNote ? String(body.projectNote) : undefined
           });
         } else if (body.newSkillName) {
+          const rawFraming = String(
+            body.description || body.honestFramingPt || `Vivência prática com ${body.newSkillName}.`
+          );
           db.upsertSkill({
             name: String(body.newSkillName),
             category: String(body.category || 'DevOps / Cloud'),
@@ -353,8 +414,11 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
               .split(',')
               .map((k) => k.trim().toLowerCase())
               .filter(Boolean),
-            honestFramingPt: String(body.honestFramingPt || `Vivência prática com ${body.newSkillName}.`),
-            honestFramingEn: String(body.honestFramingEn || `Hands-on experience with ${body.newSkillName}.`)
+            honestFramingPt: translateCvText(rawFraming, 'pt-BR'),
+            honestFramingEn:
+              body.honestFramingEn && body.honestFramingEn !== body.honestFramingPt
+                ? String(body.honestFramingEn)
+                : translateCvText(rawFraming, 'en')
           });
         }
 
