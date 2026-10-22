@@ -12,21 +12,27 @@
     <div class="brand-group">
       <div class="logo">🦎 Camaleão<span>ATS</span></div>
 
-      <div class="seniority-pill" title="Senioridade calculada a partir do seu Perfil">
-        Seu Perfil: <strong id="header-seniority-text">Júnior Avançado / Pleno</strong>
-      </div>
-
-      <!-- Job Seniority Filter as Dropdown List -->
+      <!-- Unified Seniority Selector (Used both for Live Scraping & Kanban Filtering) -->
       <div class="filter-group">
-        <label for="filter-seniority">Senioridade das Vagas:</label>
+        <label for="filter-seniority">Senioridade:</label>
         <select id="filter-seniority" class="select-compact">
-          <option value="all">Todas as Senioridades</option>
+          <option value="all">Todas (Auto pelo Perfil)</option>
           <option value="estagio">Estágio / Trainee</option>
           <option value="junior">Júnior</option>
           <option value="junior_pleno">Júnior / Pleno</option>
           <option value="pleno">Pleno</option>
           <option value="senior">Sênior</option>
           <option value="especialista">Especialista / Staff</option>
+        </select>
+      </div>
+
+      <!-- Localização / Modalidade Selector (Moved out of Perfil next to Seniority) -->
+      <div class="filter-group">
+        <label for="select-work-mode">Localização / Modalidade:</label>
+        <select id="select-work-mode" class="select-compact">
+          <option value="remoto_br">🌎 Brasil (100% Remoto)</option>
+          <option value="remoto_global">🌐 Global / LatAm (100% Remoto - EN)</option>
+          <option value="hibrido_sp">🏢 Híbrido / Presencial (Brasil)</option>
         </select>
       </div>
     </div>
@@ -280,39 +286,35 @@
           <button type="button" class="subtab profile-tab" data-ptab="ptab-projects">5. Projetos Pessoais</button>
         </div>
 
-        <!-- Profile Tab 1: Personal Data -->
+        <!-- Profile Tab 1: Personal Data (With Input Masks & Validation) -->
         <div id="ptab-dados" class="ptab-panel">
           <div class="form-grid-2">
             <div>
-              <label>Nome Completo</label>
-              <input type="text" id="prof-name" placeholder="Seu Nome Completo" />
+              <label>Nome Completo (Apenas letras)</label>
+              <input type="text" id="prof-name" placeholder="Ex: Rafael Costa" autocomplete="name" />
             </div>
             <div>
-              <label>E-mail</label>
-              <input type="text" id="prof-email" placeholder="seu.email@exemplo.com" />
+              <label>E-mail (Formato válido de e-mail)</label>
+              <input type="email" id="prof-email" placeholder="seu.email@dominio.com" autocomplete="email" />
             </div>
             <div>
-              <label>Telefone / WhatsApp</label>
-              <input type="text" id="prof-phone" placeholder="+55 (11) 99999-9999" />
-            </div>
-            <div>
-              <label>Localização / Modalidade</label>
-              <input type="text" id="prof-location" placeholder="Brasil (100% Remoto)" />
+              <label>Telefone / WhatsApp (Máscara numérica)</label>
+              <input type="tel" id="prof-phone" inputmode="numeric" maxlength="19" placeholder="+55 (11) 99999-9999" autocomplete="tel" />
             </div>
             <div>
               <label>URL do LinkedIn</label>
-              <input type="text" id="prof-linkedin" placeholder="https://linkedin.com/in/seu-perfil" />
+              <input type="url" id="prof-linkedin" placeholder="https://linkedin.com/in/seu-perfil" />
             </div>
             <div>
               <label>URL do GitHub / Portfólio</label>
-              <input type="text" id="prof-github" placeholder="https://github.com/seu-usuario" />
+              <input type="url" id="prof-github" placeholder="https://github.com/seu-usuario" />
             </div>
             <div>
-              <label>Título Profissional (PT-BR)</label>
+              <label>Título Profissional Base (PT-BR)</label>
               <input type="text" id="prof-title-pt" placeholder="DevOps Engineer | Cloud & Containers" />
             </div>
-            <div>
-              <label>Título Profissional (EN)</label>
+            <div style="grid-column: 1 / -1;">
+              <label>Título Profissional Base (EN)</label>
               <input type="text" id="prof-title-en" placeholder="DevOps Engineer | Cloud & Containers" />
             </div>
           </div>
@@ -355,7 +357,7 @@
             <div class="form-grid-3">
               <input type="text" id="new-cert-name" placeholder="Nome (Ex: AWS Certified Solutions Architect - SAA-C03)" />
               <input type="text" id="new-cert-issuer" placeholder="Emissor (Ex: AWS, CNCF, HashiCorp)" />
-              <input type="text" id="new-cert-year" placeholder="Ano / Validade (Ex: 2025)" />
+              <input type="text" id="new-cert-year" inputmode="numeric" maxlength="4" placeholder="Ano (Ex: 2025)" />
             </div>
             <button type="button" class="btn btn-primary btn-sm" id="btn-add-cert" style="margin-top: 8px;">+ Adicionar Certificação</button>
           </div>
@@ -385,7 +387,7 @@
                 <option value="Cursando">Cursando</option>
                 <option value="Trancado">Incompleto / Trancado</option>
               </select>
-              <input type="text" id="new-edu-year" placeholder="Ano de Conclusão / Previsão (Ex: 2025)" />
+              <input type="text" id="new-edu-year" inputmode="numeric" maxlength="4" placeholder="Ano (Ex: 2025)" />
             </div>
             <button type="button" class="btn btn-primary btn-sm" id="btn-add-edu" style="margin-top: 8px;">+ Adicionar Formação</button>
           </div>

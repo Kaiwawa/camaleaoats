@@ -6,7 +6,14 @@ let state = {
   activeJobId: null,
   activeLang: 'pt-BR',
   seniorityFilter: 'all',
+  workMode: 'remoto_br',
   activeAgentSlug: 'cv-adapter.md'
+};
+
+const WORK_MODE_LOCATIONS = {
+  remoto_br: { pt: 'Brasil (100% Remoto)', en: 'Brazil (100% Remote)' },
+  remoto_global: { pt: 'Global / LatAm (100% Remoto)', en: 'Remote - Worldwide / LatAm' },
+  hibrido_sp: { pt: 'Brasil (Híbrido / Presencial)', en: 'Brazil (Hybrid / On-site)' }
 };
 
 const SENIORITY_LABELS = {
@@ -60,7 +67,22 @@ async function loadBootstrap() {
 
 function renderHeader() {
   if (!state.profile) return;
-  document.getElementById('header-seniority-text').textContent = state.profile.targetSeniority;
+  const allOpt = document.querySelector('#filter-seniority option[value="all"]');
+  if (allOpt && state.profile.targetSeniority) {
+    allOpt.textContent = `Todas (Foco: ${state.profile.targetSeniority})`;
+  }
+  const loc = (state.profile.locationPt || '').toLowerCase();
+  if (loc.includes('global') || loc.includes('latam') || loc.includes('worldwide')) {
+    state.workMode = 'remoto_global';
+  } else if (loc.includes('híbrido') || loc.includes('hibrido') || loc.includes('presencial')) {
+    state.workMode = 'hibrido_sp';
+  } else {
+    state.workMode = 'remoto_br';
+  }
+  const workModeEl = document.getElementById('select-work-mode');
+  if (workModeEl) {
+    workModeEl.value = state.workMode;
+  }
 }
 
 // Theme buttons
@@ -76,10 +98,28 @@ document.querySelectorAll('.theme-btn').forEach((btn) => {
   });
 });
 
-// Seniority filter dropdown
+// Unified Seniority dropdown (filters Kanban & sets scrape seniority)
 document.getElementById('filter-seniority').addEventListener('change', (e) => {
   state.seniorityFilter = e.target.value;
   renderKanban();
+});
+
+// Localização / Modalidade dropdown (outside Profile, next to Seniority)
+document.getElementById('select-work-mode').addEventListener('change', async (e) => {
+  state.workMode = e.target.value;
+  const mapped = WORK_MODE_LOCATIONS[state.workMode] || WORK_MODE_LOCATIONS.remoto_br;
+  await fetch('/api/profile/evolve', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      profileInfo: {
+        locationPt: mapped.pt,
+        locationEn: mapped.en
+      }
+    })
+  });
+  await loadBootstrap();
+  showToast(`Localização / Modalidade alterada para: ${mapped.pt}`);
 });
 
 // Kanban Render + Native Drag and Drop
@@ -347,11 +387,87 @@ document.getElementById('btn-auto-apply').addEventListener('click', async () => 
 });
 
 document.getElementById('btn-scrape').addEventListener('click', async () => {
-  showToast('Buscando vagas remotas de DevOps / SRE / Cloud...');
-  const res = await fetch('/api/jobs/scrape', { method: 'POST' });
-  const data = await res.json();
-  await loadBootstrap();
-  showToast(`Busca concluída! ${data.total} vagas disponíveis no Kanban.`);
+  const btn = document.getElementById('btn-scrape');
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '⏳ Buscando no LinkedIn / Remotive...';
+  showToast('Buscando vagas reais no LinkedIn, Jobicy e Remotive com base nas suas Skills, Senioridade e Modalidade...');
+  try {
+    const res = await fetch('/api/jobs/scrape', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        seniorityFilter: state.seniorityFilter,
+        workMode: state.workMode
+      })
+    });
+    const data = await res.json();
+    await loadBootstrap();
+    showToast(`Busca concluída! ${data.added || 0} novas vagas processadas (${data.total} no Kanban).`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+});
+
+// ============================================================================
+// INPUT MASKS & VALIDATORS FOR PERSONAL DATA IN PROFILE
+// ============================================================================
+function formatPhoneMaskClient(raw) {
+  let digits = String(raw || '').replace(/\D/g, '');
+  if (!digits) return '';
+  if ((digits.length === 10 || digits.length === 11) && !digits.startsWith('55')) {
+    digits = '55' + digits;
+  }
+  digits = digits.slice(0, 13);
+  if (digits.length <= 2) return `+${digits}`;
+  if (digits.length <= 4) return `+${digits.slice(0, 2)} (${digits.slice(2)}`;
+  const cc = digits.slice(0, 2);
+  const ddd = digits.slice(2, 4);
+  const rest = digits.slice(4);
+  if (rest.length <= 4) return `+${cc} (${ddd}) ${rest}`;
+  if (rest.length <= 8) return `+${cc} (${ddd}) ${rest.slice(0, 4)}-${rest.slice(4)}`;
+  return `+${cc} (${ddd}) ${rest.slice(0, 5)}-${rest.slice(5, 9)}`;
+}
+
+function isValidEmailClient(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(email || '').trim());
+}
+
+document.getElementById('prof-phone').addEventListener('input', (e) => {
+  e.target.value = formatPhoneMaskClient(e.target.value);
+});
+
+document.getElementById('prof-email').addEventListener('input', (e) => {
+  const cleaned = e.target.value.replace(/\s+/g, '').toLowerCase();
+  e.target.value = cleaned;
+  e.target.style.borderColor = cleaned && !isValidEmailClient(cleaned) ? '#ef4444' : '';
+});
+
+document.getElementById('prof-name').addEventListener('input', (e) => {
+  e.target.value = e.target.value.replace(/[0-9]/g, '').replace(/\s{2,}/g, ' ');
+});
+
+['prof-linkedin', 'prof-github'].forEach((id) => {
+  const el = document.getElementById(id);
+  el.addEventListener('input', (e) => {
+    e.target.value = e.target.value.replace(/\s+/g, '');
+  });
+  el.addEventListener('blur', (e) => {
+    const val = e.target.value.trim();
+    if (val && !/^https?:\/\//i.test(val)) {
+      e.target.value = `https://${val}`;
+    }
+  });
+});
+
+['new-cert-year', 'new-edu-year'].forEach((id) => {
+  const el = document.getElementById(id);
+  if (el) {
+    el.addEventListener('input', (e) => {
+      e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4);
+    });
+  }
 });
 
 // ============================================================================
@@ -362,8 +478,7 @@ function renderProfileModalContent() {
   const p = state.profile;
   document.getElementById('prof-name').value = p.name || '';
   document.getElementById('prof-email').value = p.email || '';
-  document.getElementById('prof-phone').value = p.phone || '';
-  document.getElementById('prof-location').value = p.locationPt || '';
+  document.getElementById('prof-phone').value = formatPhoneMaskClient(p.phone || '');
   document.getElementById('prof-linkedin').value = p.linkedin || '';
   document.getElementById('prof-github').value = p.github || '';
   document.getElementById('prof-title-pt').value = p.titlePt || '';
@@ -533,60 +648,86 @@ document.getElementById('btn-toggle-cv-paste').addEventListener('click', () => {
   document.getElementById('cv-paste-drawer').classList.toggle('hidden');
 });
 
+function arrayBufferToBase64(buffer) {
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
 document.getElementById('input-cv-file').addEventListener('change', async (e) => {
   const file = e.target.files?.[0];
   if (!file) return;
+  showToast(`Extraindo dados do currículo "${file.name}"...`);
   const rawBuffer = await file.arrayBuffer();
-  const rawString = new TextDecoder('latin1').decode(rawBuffer);
-  // Extract readable ASCII/Latin-1 text segments from PDF or plain text
-  const cleanedText = file.name.toLowerCase().endsWith('.pdf')
-    ? (rawString.match(/\(([^()]{3,})\)/g) || []).map((s) => s.slice(1, -1)).join('\n') || rawString
-    : new TextDecoder('utf-8').decode(rawBuffer);
+  const isPdf = file.name.toLowerCase().endsWith('.pdf');
+  const payload = isPdf
+    ? { pdfBase64: arrayBufferToBase64(rawBuffer), rawText: '' }
+    : { rawText: new TextDecoder('utf-8').decode(rawBuffer) };
 
   const res = await fetch('/api/profile/extract-cv', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ rawText: cleanedText })
+    body: JSON.stringify(payload)
   });
-  await res.json();
+  const data = await res.json();
   await loadBootstrap();
   renderProfileModalContent();
-  showToast(`Currículo "${file.name}" importado e extraído para o seu Perfil!`);
+  const prof = data.profile || state.profile;
+  showToast(
+    `CV importado! Extraídos: ${prof.skills?.length || 0} Skills, ${prof.certificationItems?.length || 0} Certificações, ${prof.educations?.length || 0} Formações e ${prof.personalProjects?.length || 0} Projetos.`
+  );
+  e.target.value = '';
 });
 
 document.getElementById('btn-run-cv-extract').addEventListener('click', async () => {
   const rawText = document.getElementById('textarea-cv-extract').value.trim();
   if (!rawText) return;
-  await fetch('/api/profile/extract-cv', {
+  const res = await fetch('/api/profile/extract-cv', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ rawText })
   });
+  const data = await res.json();
   await loadBootstrap();
   renderProfileModalContent();
   document.getElementById('cv-paste-drawer').classList.add('hidden');
-  showToast('Dados, certificações, graduações e projetos extraídos do seu CV!');
+  const prof = data.profile || state.profile;
+  showToast(
+    `Extração concluída! ${prof.skills?.length || 0} Skills, ${prof.certificationItems?.length || 0} Certificações, ${prof.educations?.length || 0} Formações e ${prof.personalProjects?.length || 0} Projetos preenchidos nas 5 abas.`
+  );
 });
 
 document.getElementById('btn-save-profile-info').addEventListener('click', async () => {
+  const emailVal = document.getElementById('prof-email').value.trim().toLowerCase();
+  if (emailVal && !isValidEmailClient(emailVal)) {
+    showToast('⚠️ Informe um endereço de e-mail válido (ex: nome@dominio.com).');
+    document.getElementById('prof-email').focus();
+    return;
+  }
+  const phoneVal = formatPhoneMaskClient(document.getElementById('prof-phone').value);
+  document.getElementById('prof-phone').value = phoneVal;
+
   await fetch('/api/profile/evolve', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       profileInfo: {
-        name: document.getElementById('prof-name').value,
-        email: document.getElementById('prof-email').value,
-        phone: document.getElementById('prof-phone').value,
-        locationPt: document.getElementById('prof-location').value,
-        linkedin: document.getElementById('prof-linkedin').value,
-        github: document.getElementById('prof-github').value,
-        titlePt: document.getElementById('prof-title-pt').value,
-        titleEn: document.getElementById('prof-title-en').value
+        name: document.getElementById('prof-name').value.trim(),
+        email: emailVal,
+        phone: phoneVal,
+        linkedin: document.getElementById('prof-linkedin').value.trim(),
+        github: document.getElementById('prof-github').value.trim(),
+        titlePt: document.getElementById('prof-title-pt').value.trim(),
+        titleEn: document.getElementById('prof-title-en').value.trim()
       }
     })
   });
   await loadBootstrap();
-  showToast('Dados pessoais salvos com sucesso!');
+  showToast('Dados pessoais validados e salvos com sucesso!');
 });
 
 document.getElementById('btn-add-skill').addEventListener('click', async () => {

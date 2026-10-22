@@ -7,6 +7,7 @@ import type { JobSeniority, KanbanStatus, Language, RecruiterStatus, SkillLevel,
 import {
   analyzeAndHighlightJob,
   extractProfileFromCvText,
+  extractTextFromPdfBuffer,
   generateHonestTailoredCv,
   generateRecruiterMessages
 } from './ats-engine.ts';
@@ -58,9 +59,10 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
       const method = req.method || 'GET';
 
       if (method === 'GET' && pathname === '/api/bootstrap') {
+        db.deleteDemoJobs();
         let jobs = db.listJobs();
-        if (jobs.length === 0) {
-          await collectRemoteDevOpsJobs(db, async () => new Response('{}', { status: 500 }));
+        if (jobs.length === 0 && !customDb) {
+          await collectRemoteDevOpsJobs(db);
           jobs = db.listJobs();
         }
         return sendJson(res, 200, {
@@ -73,7 +75,13 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
       }
 
       if (method === 'POST' && pathname === '/api/jobs/scrape') {
-        const result = await collectRemoteDevOpsJobs(db);
+        const body = await readJsonBody(req);
+        const seniorityFilter = body.seniorityFilter ? (String(body.seniorityFilter) as JobSeniority | 'all') : 'all';
+        const workMode = body.workMode
+          ? (String(body.workMode) as 'remoto_br' | 'remoto_global' | 'hibrido_sp')
+          : 'remoto_br';
+        db.deleteDemoJobs();
+        const result = await collectRemoteDevOpsJobs(db, fetch, { seniorityFilter, workMode });
         return sendJson(res, 200, result);
       }
 
@@ -185,7 +193,14 @@ export function createAppServer(customDb?: AppDatabase): http.Server {
 
       if (method === 'POST' && pathname === '/api/profile/extract-cv') {
         const body = await readJsonBody(req);
-        const rawText = String(body.rawText ?? '');
+        let rawText = String(body.rawText ?? '');
+        if (body.pdfBase64 && typeof body.pdfBase64 === 'string') {
+          const pdfBuf = Buffer.from(body.pdfBase64, 'base64');
+          const pdfExtracted = extractTextFromPdfBuffer(pdfBuf);
+          if (pdfExtracted.trim().length > 0) {
+            rawText = pdfExtracted + '\n' + rawText;
+          }
+        }
         const profile = extractProfileFromCvText(rawText, db);
         rescoreAllJobs();
         return sendJson(res, 200, {

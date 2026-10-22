@@ -5,6 +5,7 @@ import {
   analyzeAndHighlightJob,
   detectJobLanguage,
   extractProfileFromCvText,
+  extractTextFromPdfBuffer,
   generateHonestTailoredCv,
   generateRecruiterMessages,
   ANTI_HALLUCINATION_SYSTEM_PROMPT
@@ -170,5 +171,60 @@ test('includes personal projects in tailored CV only when relevant to job stack 
   );
   assert.ok(cvWithRelevantProject.relevantProjects.length >= 1);
 });
+
+test('extractProfileFromCvText parses multi-section Portuguese/English CVs into exact tabs and replaces placeholder education', () => {
+  const db = new AppDatabase(':memory:');
+  const multiSectionCv = `
+    CURRÍCULO
+    Gabriel Almeida Costa
+    Engenheiro DevOps & Cloud SRE
+    E-mail: gabriel.costa@devops.com.br
+    Telefone: 11987654321
+    LinkedIn: linkedin.com/in/gabriel-costa-devops
+    GitHub: github.com/gabrieldevops
+
+    RESUMO PROFISSIONAL
+    Atuação focada em automação de infraestrutura Cloud AWS, containers Docker, pipelines GitHub Actions e GitOps com ArgoCD.
+
+    FORMAÇÃO ACADÊMICA
+    Tecnólogo em Redes de Computadores - FATEC São Paulo (2023)
+    Pós-Graduação em Arquitetura Cloud & DevOps - FIAP (Cursando - 2026)
+
+    CERTIFICAÇÕES
+    - AWS Certified Solutions Architect - Associate (SAA-C03) - Amazon Web Services (2025)
+    - GitHub Actions Certified - GitHub (2024)
+
+    HABILIDADES TÉCNICAS
+    Docker (Avançado), AWS (Avançado), GitHub Actions, ArgoCD, Kubernetes (Iniciante - YAML), Terraform, Ansible, Grafana, Linux, Python
+
+    PROJETOS PESSOAIS
+    - Homelab Observability Stack: Monitoramento de containers Docker e Kubernetes com Grafana e Prometheus.
+  `;
+
+  const profile = extractProfileFromCvText(multiSectionCv, db);
+
+  assert.equal(profile.name, 'Gabriel Almeida Costa');
+  assert.equal(profile.email, 'gabriel.costa@devops.com.br');
+  assert.equal(profile.phone, '+55 (11) 98765-4321');
+  assert.equal(profile.linkedin, 'https://linkedin.com/in/gabriel-costa-devops');
+  assert.equal(profile.github, 'https://github.com/gabrieldevops');
+
+  // Placeholder education should be replaced by real ones
+  assert.ok(!profile.educations.some((e) => e.institution === 'Instituição de Ensino Superior'));
+  assert.ok(profile.educations.some((e) => e.course.includes('Redes de Computadores')));
+  assert.ok(profile.educations.some((e) => e.institution.includes('FIAP')));
+
+  // Certifications routed to certificationItems without seniority level
+  assert.ok(profile.certificationItems.some((c) => c.name.includes('SAA-C03')));
+  assert.ok(profile.certificationItems.some((c) => c.name.includes('GitHub Actions')));
+
+  // Skills routed to skills with Python & Linux included
+  assert.ok(profile.skills.some((s) => s.name === 'Python'));
+  assert.ok(profile.skills.some((s) => s.name === 'Linux'));
+
+  // Projects routed to personalProjects
+  assert.ok(profile.personalProjects.some((p) => p.name.includes('Homelab Observability Stack')));
+});
+
 
 

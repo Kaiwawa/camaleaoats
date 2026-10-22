@@ -12,11 +12,11 @@ test('API serves Kanban bootstrap, bilingual job popup detail with Gupy kit & hi
   const addr = server.address() as { port: number };
   const baseUrl = `http://127.0.0.1:${addr.port}`;
 
-  // 1. Bootstrap auto-seeds curated remote DevOps jobs if empty
+  // 1. Bootstrap returns profile, jobs array, settings and agentPrompts without fake demo jobs
   const bootRes = await fetch(`${baseUrl}/api/bootstrap`);
   assert.equal(bootRes.status, 200);
   const boot = await bootRes.json();
-  assert.ok(boot.jobs.length >= 3);
+  assert.ok(Array.isArray(boot.jobs));
   assert.equal(boot.profile.targetSeniority, 'Júnior Avançado / Pleno');
 
   // 2. Ingest a new Gupy job

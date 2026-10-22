@@ -482,6 +482,18 @@ export class AppDatabase {
     return this.getProfile();
   }
 
+  public clearPlaceholderEducations(): void {
+    this.db.prepare(`DELETE FROM educations WHERE institution = 'Instituição de Ensino Superior'`).run();
+  }
+
+  public deleteDemoJobs(): void {
+    this.db
+      .prepare(
+        `DELETE FROM jobs WHERE company IN ('CloudPulse Brasil', 'PagFácil Tecnologia', 'KubeWorks Consultoria', 'NimbleStack IO') AND status = 'abertas'`
+      )
+      .run();
+  }
+
   public addPersonalProject(proj: {
     name: string;
     techStack: string[];

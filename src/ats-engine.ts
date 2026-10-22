@@ -1,4 +1,5 @@
-import type { Job, Language, Profile, RecruiterMessages, TailoredCv } from './types.ts';
+import zlib from 'node:zlib';
+import type { Job, Language, Profile, RecruiterMessages, SkillLevel, TailoredCv } from './types.ts';
 
 export const ANTI_HALLUCINATION_SYSTEM_PROMPT = `
 Você é o motor de adaptação de currículo e abordagem do CamaleãoATS.
@@ -81,7 +82,6 @@ export function analyzeAndHighlightJob(
     }
   }
 
-  // Sister cloud / CI-CD transferable terms
   const transferableTerms = ['gcp', 'google cloud', 'azure', 'oci', 'oracle cloud', 'gitlab ci', 'jenkins', 'azure devops', 'helm', 'prometheus'];
   for (const t of transferableTerms) {
     evolvingKeywordMap.set(t, `Transferível (${t.toUpperCase()})`);
@@ -91,7 +91,6 @@ export function analyzeAndHighlightJob(
     }
   }
 
-  // Escape HTML first so raw <script> or tags can never execute
   let highlightedHtml = escapeHtml(job.description);
 
   const allKeywords = [
@@ -99,7 +98,6 @@ export function analyzeAndHighlightJob(
     ...Array.from(evolvingKeywordMap.keys()).map((k) => ({ kw: k, cls: 'match-evolving', label: evolvingKeywordMap.get(k)! }))
   ].sort((a, b) => b.kw.length - a.kw.length);
 
-  // Use placeholders to avoid nested <mark> replacements
   const placeholders: { token: string; html: string }[] = [];
   let tokenIdx = 0;
 
@@ -126,7 +124,6 @@ export function analyzeAndHighlightJob(
 
   highlightedHtml = highlightedHtml.replace(/\n/g, '<br/>');
 
-  // Score calculation
   let score = 55 + strongMatches.length * 10 + evolvingMatches.length * 4;
   if (/remoto|remote|home office|anywhere/i.test(`${job.title} ${job.location} ${job.description}`)) {
     score += 8;
@@ -179,7 +176,6 @@ export function generateHonestTailoredCv(
   );
   const descLower = `${job.title} ${job.description}`.toLowerCase();
 
-  // Order skills: strong matched first, then evolving matched, then remaining solid/practical, then rest
   const scoredSkills = profile.skills.map((skill) => {
     const isMatched = skill.keywords.some((kw) => descLower.includes(kw.toLowerCase()));
     const levelWeight = skill.level === 'solid' ? 30 : skill.level === 'practical' ? 20 : 10;
@@ -199,7 +195,6 @@ export function generateHonestTailoredCv(
     framing: targetLang === 'en' ? skill.honestFramingEn : skill.honestFramingPt
   }));
 
-  // Select personal projects only when their techStack overlaps with the job description
   const relevantProjects = (profile.personalProjects || []).filter((proj) =>
     proj.techStack.some((tech) => descLower.includes(tech.toLowerCase()))
   );
@@ -240,11 +235,13 @@ export function generateHonestTailoredCv(
       `Highlighted top matched ATS keywords (${topMatchedNames}) in the summary and skill ordering.`
     );
     honestAdjustmentsMade.push(
-      'Framed Kubernetes strictly within your real expertise (writing YAML manifests + GitOps with ArgoCD + Docker) without inventing senior cluster admin claims.'
+      'Framed Kubernetes strictly within your real expertise without inventing senior cluster admin claims.'
     );
 
     const k8sSkillEn = profile.skills.find((s) => s.name === 'Kubernetes');
-    const k8sTextEn = k8sSkillEn ? k8sSkillEn.honestFramingEn : 'Authoring and maintaining Kubernetes YAML manifests integrated with Docker and ArgoCD pipelines.';
+    const k8sTextEn = k8sSkillEn
+      ? k8sSkillEn.honestFramingEn
+      : 'Authoring and maintaining Kubernetes YAML manifests integrated with Docker and ArgoCD pipelines.';
 
     const gupyApresentese = [
       `Hello ${job.company} team! I am applying for the ${job.title} role.`,
@@ -268,12 +265,11 @@ export function generateHonestTailoredCv(
         apresenteseText: gupyApresentese,
         profileSummaryToUpdate: summary,
         experienceBlocksToUpdate: experienceBullets.slice(0, 5),
-        skillsTagsToAdd: ['Docker', 'AWS', 'AWS SAA-C03', 'CI/CD', 'GitHub Actions', 'ArgoCD', 'GitOps', 'Kubernetes', 'YAML', 'Terraform', 'Ansible', 'Grafana', 'Linux']
+        skillsTagsToAdd: profile.skills.map((s) => s.name)
       }
     };
   }
 
-  // Default: pt-BR
   const topMatchedNamesPt = analysis.strongMatches.length
     ? analysis.strongMatches.join(', ')
     : 'AWS (SAA-C03), Docker, GitHub Actions e ArgoCD';
@@ -303,11 +299,13 @@ export function generateHonestTailoredCv(
     `Priorizou no topo do CV e no resumo as palavras-chave exatas encontradas na vaga (${topMatchedNamesPt}).`
   );
   honestAdjustmentsMade.push(
-    'Posicionou Kubernetes de forma 100% honesta (escrita de manifestos YAML + GitOps com ArgoCD + Docker), passando no filtro de palavras-chave do ATS sem inventar senioridade de cluster admin.'
+    'Posicionou Kubernetes de forma 100% honesta conforme seu Perfil, passando no filtro de palavras-chave do ATS sem inventar senioridade.'
   );
 
   const k8sSkillPt = profile.skills.find((s) => s.name === 'Kubernetes');
-  const k8sTextPt = k8sSkillPt ? k8sSkillPt.honestFramingPt : 'Escrita e manutenção de manifestos YAML para Kubernetes integrados ao fluxo de containers e ArgoCD.';
+  const k8sTextPt = k8sSkillPt
+    ? k8sSkillPt.honestFramingPt
+    : 'Escrita e manutenção de manifestos YAML para Kubernetes integrados ao fluxo de containers e ArgoCD.';
 
   const gupyApresentesePt = [
     `Olá, time da ${job.company}! Tenho grande interesse na oportunidade de ${job.title}.`,
@@ -331,7 +329,7 @@ export function generateHonestTailoredCv(
       apresenteseText: gupyApresentesePt,
       profileSummaryToUpdate: summaryPt,
       experienceBlocksToUpdate: experienceBullets.slice(0, 5),
-      skillsTagsToAdd: ['Docker', 'AWS', 'AWS SAA-C03', 'CI/CD', 'GitHub Actions', 'ArgoCD', 'GitOps', 'Kubernetes', 'YAML', 'Terraform', 'Ansible', 'Grafana', 'Linux']
+      skillsTagsToAdd: profile.skills.map((s) => s.name)
     }
   };
 }
@@ -384,7 +382,6 @@ export function generateRecruiterMessages(
     };
   }
 
-  // pt-BR
   const greeting = job.recruiterName?.trim() ? `Oi ${truncateText(firstName, 14)}, tudo bem?` : 'Olá, tudo bem?';
   let inviteNotePt = `${greeting} Vi a vaga de ${shortRole} na ${shortCompany}. Atuo com DevOps (${stackText}, K8s YAML) e adoraria me conectar!`;
   if (inviteNotePt.length > 200) {
@@ -409,14 +406,85 @@ export function generateRecruiterMessages(
   };
 }
 
+function decodePdfLiteralString(s: string): string {
+  return s
+    .replace(/\\(\d{3})/g, (_m, oct: string) => String.fromCharCode(parseInt(oct, 8)))
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '\r')
+    .replace(/\\t/g, ' ')
+    .replace(/\\\(/g, '(')
+    .replace(/\\\)/g, ')')
+    .replace(/\\\\/g, '\\');
+}
+
+export function extractTextFromPdfBuffer(pdfBuffer: Buffer): string {
+  const raw = pdfBuffer.toString('latin1');
+  if (!raw.startsWith('%PDF')) {
+    return pdfBuffer.toString('utf8');
+  }
+
+  const chunks: string[] = [];
+  const streamRegex = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = streamRegex.exec(raw)) !== null) {
+    const streamBody = Buffer.from(match[1], 'latin1');
+    let decodedStream = match[1];
+    try {
+      decodedStream = zlib.inflateSync(streamBody).toString('latin1');
+    } catch {
+      try {
+        decodedStream = zlib.inflateRawSync(streamBody).toString('latin1');
+      } catch {
+        // Uncompressed stream
+      }
+    }
+
+    // Extract text from (literal) Tj and [(literal) -10 (literal)] TJ operators
+    const textOps = decodedStream.match(/\((?:\\.|[^\\()])*\)\s*Tj|\[(?:\s*\((?:\\.|[^\\()])*\)|\s*-?\d+(?:\.\d+)?\s*)+\]\s*TJ/g);
+    if (textOps) {
+      const lineParts: string[] = [];
+      for (const op of textOps) {
+        const literals = op.match(/\((?:\\.|[^\\()])*\)/g) || [];
+        const lineText = literals.map((lit) => decodePdfLiteralString(lit.slice(1, -1))).join('');
+        if (lineText.trim()) lineParts.push(lineText);
+      }
+      if (lineParts.length) chunks.push(lineParts.join('\n'));
+    }
+  }
+
+  return chunks.join('\n').trim() || raw.replace(/[^\x20-\x7E\xA0-\xFF\n]/g, ' ');
+}
+
+export function formatPhoneMask(rawPhone: string): string {
+  const digits = rawPhone.replace(/\D/g, '');
+  if (!digits) return '';
+  let normalized = digits;
+  if (normalized.length === 10 || normalized.length === 11) {
+    normalized = '55' + normalized;
+  }
+  if (normalized.length >= 12 && normalized.startsWith('55')) {
+    const ddd = normalized.slice(2, 4);
+    const rest = normalized.slice(4, 13);
+    if (rest.length === 9) {
+      return `+55 (${ddd}) ${rest.slice(0, 5)}-${rest.slice(5)}`;
+    }
+    if (rest.length === 8) {
+      return `+55 (${ddd}) ${rest.slice(0, 4)}-${rest.slice(4)}`;
+    }
+  }
+  return rawPhone.trim();
+}
+
 export function extractProfileFromCvText(
   rawText: string,
   db: {
     updateProfileInfo: (info: Record<string, unknown>) => Profile;
     addCertification: (cert: { name: string; issuer?: string; year?: string }) => Profile;
     addEducation: (edu: { course: string; institution: string; degree: string; status?: string; year?: string }) => Profile;
+    clearPlaceholderEducations?: () => void;
     addPersonalProject: (proj: { name: string; techStack: string[]; descriptionPt: string; descriptionEn?: string }) => Profile;
-    upsertSkill: (skill: { name: string; category: string; level: 'evolving' | 'practical' | 'solid'; keywords: string[]; honestFramingPt: string; honestFramingEn: string }) => Profile;
+    upsertSkill: (skill: { name: string; category: string; level: SkillLevel; keywords: string[]; honestFramingPt: string; honestFramingEn: string }) => Profile;
     getProfile: () => Profile;
   }
 ): Profile {
@@ -427,29 +495,150 @@ export function extractProfileFromCvText(
 
   const infoPatch: Record<string, string> = {};
 
-  // 1. Name from first non-header line
-  if (lines.length > 0 && lines[0].length <= 65 && !lines[0].includes('@')) {
-    infoPatch.name = lines[0].replace(/^#+\s*/, '').trim();
+  const ignoredHeaderRx = /^(curr[íi]culo|curriculum vitae|cv|resumo|summary|perfil|contato|contact|dados pessoais)$/i;
+
+  for (const line of lines.slice(0, 6)) {
+    const clean = line.replace(/^#+\s*/, '').replace(/^(nome|name)\s*:\s*/i, '').trim();
+    if (
+      clean.length >= 4 &&
+      clean.length <= 60 &&
+      !ignoredHeaderRx.test(clean) &&
+      !clean.includes('@') &&
+      !/https?:\/\/|linkedin\.com|github\.com/i.test(clean) &&
+      !/^\+?\d[\d\s()-]{7,}$/.test(clean) &&
+      !/^(e-?mail|telefone|celular|phone|whatsapp|linkedin|github)\s*:/i.test(clean)
+    ) {
+      infoPatch.name = clean;
+      break;
+    }
   }
 
-  // 2. Email, Phone, LinkedIn, GitHub
   const emailMatch = rawText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-  if (emailMatch) infoPatch.email = emailMatch[0];
+  if (emailMatch) infoPatch.email = emailMatch[0].toLowerCase();
 
-  const phoneMatch = rawText.match(/(\+?\d{1,3}[\s-]?)?\(?\d{2}\)?[\s-]?\d{4,5}[\s-]?\d{4}/);
-  if (phoneMatch) infoPatch.phone = phoneMatch[0].trim();
+  const phoneMatch = rawText.match(/(?:(?:\+|00)?55[\s-]?)?\(?\d{2}\)?[\s-]?\d{4,5}[\s-]?\d{4}/);
+  if (phoneMatch) infoPatch.phone = formatPhoneMask(phoneMatch[0]);
 
-  const linkedinMatch = rawText.match(/https?:\/\/(www\.)?linkedin\.com\/in\/[^\s|,)"]+/i);
-  if (linkedinMatch) infoPatch.linkedin = linkedinMatch[0];
+  const linkedinMatch = rawText.match(/(?:https?:\/\/)?(?:www\.|[a-z]{2}\.)?linkedin\.com\/in\/[a-zA-Z0-9_-]+/i);
+  if (linkedinMatch) {
+    infoPatch.linkedin = linkedinMatch[0].startsWith('http') ? linkedinMatch[0] : `https://${linkedinMatch[0]}`;
+  }
 
-  const githubMatch = rawText.match(/https?:\/\/(www\.)?github\.com\/[^\s|,)"]+/i);
-  if (githubMatch) infoPatch.github = githubMatch[0];
+  const githubMatch = rawText.match(/(?:https?:\/\/)?(?:www\.)?github\.com\/[a-zA-Z0-9_-]+/i);
+  if (githubMatch) {
+    infoPatch.github = githubMatch[0].startsWith('http') ? githubMatch[0] : `https://${githubMatch[0]}`;
+  }
+
+  // Section-aware parsing
+  type SectionType = 'header' | 'summary' | 'education' | 'certifications' | 'skills' | 'projects' | 'experience';
+  let currentSection: SectionType = 'header';
+  const sections: Record<SectionType, string[]> = {
+    header: [],
+    summary: [],
+    education: [],
+    certifications: [],
+    skills: [],
+    projects: [],
+    experience: []
+  };
+
+  for (const line of lines) {
+    const headerCheck = line.replace(/^#+\s*/, '').replace(/:$/, '').trim();
+    if (/^(resumo( profissional)?|professional summary|summary|sobre mim|perfil profissional|objetivo)$/i.test(headerCheck)) {
+      currentSection = 'summary';
+      continue;
+    }
+    if (/^(forma[çc][ãa]o( acad[êe]mica)?|educa[çc][ãa]o|escolaridade|gradua[çc][ãa]o|academic|education)$/i.test(headerCheck)) {
+      currentSection = 'education';
+      continue;
+    }
+    if (/^(certifica[çc][õo]es|certifications|cursos e certifica[çc][õo]es|credentials)$/i.test(headerCheck)) {
+      currentSection = 'certifications';
+      continue;
+    }
+    if (/^(habilidades( t[ée]cnicas)?|compet[êe]ncias|skills|technical skills|tecnologias|stack|ferramentas)$/i.test(headerCheck)) {
+      currentSection = 'skills';
+      continue;
+    }
+    if (/^(projetos( pessoais)?|personal projects|projects|portf[óo]lio|homelab)$/i.test(headerCheck)) {
+      currentSection = 'projects';
+      continue;
+    }
+    if (/^(experi[êe]ncia( profissional)?|work experience|experience|hist[óo]rico profissional)$/i.test(headerCheck)) {
+      currentSection = 'experience';
+      continue;
+    }
+
+    sections[currentSection].push(line);
+  }
+
+  if (sections.summary.length > 0) {
+    const joinedSummary = sections.summary.join(' ').trim();
+    if (joinedSummary.length >= 25) {
+      infoPatch.baseSummaryPt = joinedSummary;
+    }
+  }
 
   if (Object.keys(infoPatch).length > 0) {
     db.updateProfileInfo(infoPatch);
   }
 
-  // 3. Extract Certifications (without seniority level)
+  // Extract Educations (from education section + inline degree lines)
+  const eduLines = [
+    ...sections.education,
+    ...lines.filter((l) =>
+      /\b(bacharelado|tecn[óo]logo|licenciatura|gradua[çc][ãa]o|p[óo]s-gradua[çc][ãa]o|mba|mestrado|engenharia|ci[êe]ncia da computa[çc][ãa]o|sistemas de informa[çc][ãa]o|an[áa]lise e desenvolvimento|redes de computadores|fatec|fiap|usp|puc|unip|est[áa]cio|senac|senai|unicamp|ufmg|ufrj)\b/i.test(
+        l
+      )
+    )
+  ];
+
+  const uniqueEduLines = Array.from(new Set(eduLines.map((l) => l.replace(/^[-•*]\s*/, '').replace(/^(forma[çc][ãa]o|educa[çc][ãa]o|ensino)\s*:\s*/i, '').trim()))).filter(
+    (l) => l.length > 8
+  );
+
+  if (uniqueEduLines.length > 0 && db.clearPlaceholderEducations) {
+    db.clearPlaceholderEducations();
+  }
+
+  for (const line of uniqueEduLines) {
+    const yearMatch = line.match(/\b(20\d{2}|19\d{2})\b/);
+    const withoutYear = line.replace(/\([^)]*\d{4}[^)]*\)/g, '').trim();
+    const parts = withoutYear.split(/\s+[-–—|•]\s+/);
+    const course = (parts[0] || withoutYear).trim();
+    const institution = (parts[1] || 'Instituição de Ensino').trim();
+    const degree = /p[óo]s|mba|especializa[çc][ãa]o/i.test(line)
+      ? 'Pós-Graduação / MBA'
+      : /tecn[óo]logo/i.test(line)
+      ? 'Tecnólogo'
+      : /mestrado|doutorado/i.test(line)
+      ? 'Mestrado / Doutorado'
+      : /t[ée]cnico/i.test(line)
+      ? 'Ensino Técnico'
+      : 'Bacharelado / Graduação';
+    const status = /cursando|andamento|em curso|presente/i.test(line) ? 'Cursando' : 'Concluído';
+
+    db.addEducation({
+      course,
+      institution,
+      degree,
+      status,
+      year: yearMatch ? yearMatch[1] : ''
+    });
+  }
+
+  // Extract Certifications (from certifications section + known patterns)
+  for (const certLine of sections.certifications) {
+    const clean = certLine.replace(/^[-•*]\s*/, '').trim();
+    if (clean.length < 4) continue;
+    const yearMatch = clean.match(/\b(20\d{2})\b/);
+    const withoutYear = clean.replace(/\(\s*20\d{2}\s*\)/g, '').trim();
+    const parts = withoutYear.split(/\s+[-–—|]\s+/);
+    const name = parts[0].trim();
+    const issuer = parts[1]?.trim() || 'Certificadora Oficial';
+    db.addCertification({ name, issuer, year: yearMatch ? yearMatch[1] : 'Ativa' });
+  }
+
   const knownCerts = [
     { rx: /AWS.*Solutions Architect.*Associate|SAA-C03/i, name: 'AWS Certified Solutions Architect - Associate (SAA-C03)', issuer: 'AWS' },
     { rx: /AWS.*Cloud Practitioner|CLF-C0[12]/i, name: 'AWS Certified Cloud Practitioner', issuer: 'AWS' },
@@ -457,7 +646,8 @@ export function extractProfileFromCvText(
     { rx: /\bCKA\b|Certified Kubernetes Administrator/i, name: 'Certified Kubernetes Administrator (CKA)', issuer: 'CNCF' },
     { rx: /\bCKAD\b|Certified Kubernetes Application Developer/i, name: 'Certified Kubernetes Application Developer (CKAD)', issuer: 'CNCF' },
     { rx: /AZ-104|Azure Administrator/i, name: 'Microsoft Certified: Azure Administrator Associate (AZ-104)', issuer: 'Microsoft' },
-    { rx: /AZ-900|Azure Fundamentals/i, name: 'Microsoft Certified: Azure Fundamentals (AZ-900)', issuer: 'Microsoft' }
+    { rx: /AZ-900|Azure Fundamentals/i, name: 'Microsoft Certified: Azure Fundamentals (AZ-900)', issuer: 'Microsoft' },
+    { rx: /GitHub Actions Certified/i, name: 'GitHub Actions Certified', issuer: 'GitHub' }
   ];
 
   for (const kc of knownCerts) {
@@ -466,46 +656,29 @@ export function extractProfileFromCvText(
     }
   }
 
-  // 4. Extract Educations / Graduations
-  for (const line of lines) {
-    if (/\b(bacharelado|tecn[óo]logo|licenciatura|gradua[çc][ãa]o|p[óo]s-gradua[çc][ãa]o|mba|mestrado|engenharia|ci[êe]ncia da computa[çc][ãa]o|sistemas de informa[çc][ãa]o|an[áa]lise e desenvolvimento)\b/i.test(line)) {
-      const cleaned = line.replace(/^(forma[çc][ãa]o|educa[çc][ãa]o|ensino)\s*:\s*/i, '').trim();
-      const parts = cleaned.split(/\s+[-–—|]\s+/);
-      const course = parts[0] || cleaned;
-      const institution = parts[1]?.replace(/\(\d{4}\)/, '').trim() || 'Instituição de Ensino';
-      const yearMatch = line.match(/\b(20\d{2}|19\d{2})\b/);
-      const degree = /p[óo]s|mba/i.test(line)
-        ? 'Pós-Graduação / MBA'
-        : /tecn[óo]logo/i.test(line)
-        ? 'Tecnólogo'
-        : 'Bacharelado / Graduação';
-      db.addEducation({
-        course,
-        institution,
-        degree,
-        status: /cursando|andamento/i.test(line) ? 'Cursando' : 'Concluído',
-        year: yearMatch ? yearMatch[1] : ''
-      });
-    }
+  // Extract Personal Projects
+  const projLines = [
+    ...sections.projects,
+    ...lines.filter((l) => /^(projeto|project|homelab)\s*[:\-]/i.test(l) || /projeto pessoal\s*:/i.test(l))
+  ];
+  for (const pLine of projLines) {
+    const cleaned = pLine.replace(/^[-•*]\s*/, '').replace(/^projeto( pessoal)?\s*:\s*/i, '').trim();
+    if (cleaned.length < 8) continue;
+    const [rawName, ...rest] = cleaned.split(/\s*:\s*/);
+    const projName = (rest.length > 0 ? rawName : cleaned.slice(0, 55)).trim();
+    const projDesc = (rest.length > 0 ? rest.join(': ') : cleaned).trim();
+    const stackCandidates = ['Docker', 'Kubernetes', 'ArgoCD', 'AWS', 'Terraform', 'Ansible', 'Grafana', 'Prometheus', 'GitHub Actions', 'Linux', 'Kind', 'Python', 'Helm'];
+    const detectedStack = stackCandidates.filter((t) => new RegExp(t, 'i').test(cleaned));
+    db.addPersonalProject({
+      name: projName,
+      techStack: detectedStack.length ? detectedStack : ['DevOps', 'Cloud'],
+      descriptionPt: projDesc,
+      descriptionEn: projDesc
+    });
   }
 
-  // 5. Extract Personal Projects
-  for (const line of lines) {
-    if (/^(projeto|project|homelab)/i.test(line) || /projeto pessoal\s*:/i.test(line)) {
-      const cleaned = line.replace(/^[^:]+:\s*/, '').trim();
-      const stackCandidates = ['Docker', 'Kubernetes', 'ArgoCD', 'AWS', 'Terraform', 'Ansible', 'Grafana', 'Prometheus', 'GitHub Actions', 'Linux', 'Kind'];
-      const detectedStack = stackCandidates.filter((t) => new RegExp(t, 'i').test(cleaned));
-      db.addPersonalProject({
-        name: cleaned.slice(0, 60),
-        techStack: detectedStack.length ? detectedStack : ['DevOps', 'Cloud'],
-        descriptionPt: cleaned,
-        descriptionEn: cleaned
-      });
-    }
-  }
-
-  // 6. Extract additional Skills if mentioned in CV
-  const extraSkillsCatalog: Array<{ name: string; category: string; kw: string[]; pt: string; en: string }> = [
+  // Extract Skills from comprehensive catalog
+  const skillsCatalog: Array<{ name: string; category: string; kw: string[]; pt: string; en: string }> = [
     {
       name: 'Prometheus',
       category: 'Observabilidade',
@@ -516,9 +689,16 @@ export function extractProfileFromCvText(
     {
       name: 'Linux',
       category: 'Sistemas',
-      kw: ['linux', 'ubuntu', 'debian', 'rhel', 'bash', 'shell script'],
+      kw: ['linux', 'ubuntu', 'debian', 'rhel', 'centos', 'bash', 'shell script'],
       pt: 'Administração de ambientes Linux, automação via Shell Script/Bash e troubleshooting de rede e processos.',
       en: 'Linux administration, Bash/Shell scripting automation, and network/process troubleshooting.'
+    },
+    {
+      name: 'Python',
+      category: 'Automação & Scripting',
+      kw: ['python', 'boto3'],
+      pt: 'Desenvolvimento de scripts de automação e integração de infraestrutura utilizando Python.',
+      en: 'Developing infrastructure automation scripts and integrations using Python.'
     },
     {
       name: 'Helm',
@@ -526,11 +706,46 @@ export function extractProfileFromCvText(
       kw: ['helm', 'helm charts'],
       pt: 'Empacotamento e parametrização de aplicações em Kubernetes utilizando Helm Charts.',
       en: 'Packaging and templating Kubernetes applications using Helm Charts.'
+    },
+    {
+      name: 'GitLab CI',
+      category: 'CI/CD',
+      kw: ['gitlab ci', 'gitlab-ci'],
+      pt: 'Construção e manutenção de pipelines de integração e entrega contínua no GitLab CI.',
+      en: 'Building and maintaining CI/CD pipelines in GitLab CI.'
+    },
+    {
+      name: 'Jenkins',
+      category: 'CI/CD',
+      kw: ['jenkins', 'jenkinsfile'],
+      pt: 'Automação de esteiras de build e deploy contínuo utilizando Jenkins.',
+      en: 'Automating build and deployment pipelines using Jenkins.'
+    },
+    {
+      name: 'Azure',
+      category: 'Cloud',
+      kw: ['azure', 'microsoft azure', 'aks', 'azure devops'],
+      pt: 'Vivência em serviços de nuvem Microsoft Azure e esteiras Azure DevOps.',
+      en: 'Experience with Microsoft Azure cloud services and Azure DevOps pipelines.'
+    },
+    {
+      name: 'GCP (Google Cloud)',
+      category: 'Cloud',
+      kw: ['gcp', 'google cloud', 'gke'],
+      pt: 'Atuação com recursos de nuvem no Google Cloud Platform (GCP).',
+      en: 'Working with cloud infrastructure on Google Cloud Platform (GCP).'
+    },
+    {
+      name: 'Zabbix',
+      category: 'Observabilidade',
+      kw: ['zabbix'],
+      pt: 'Monitoramento de infraestrutura, servidores e ativos de rede com Zabbix.',
+      en: 'Infrastructure, server, and network monitoring using Zabbix.'
     }
   ];
 
-  for (const item of extraSkillsCatalog) {
-    if (item.kw.some((k) => new RegExp(`\\b${k}\\b`, 'i').test(rawText))) {
+  for (const item of skillsCatalog) {
+    if (item.kw.some((k) => new RegExp(`(^|[^a-zA-Z0-9])${escapeRegex(k)}([^a-zA-Z0-9]|$)`, 'i').test(rawText))) {
       db.upsertSkill({
         name: item.name,
         category: item.category,
@@ -544,4 +759,3 @@ export function extractProfileFromCvText(
 
   return db.getProfile();
 }
-
