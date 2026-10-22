@@ -167,13 +167,17 @@
           <div id="modal-preference-alerts" class="alerts-box hidden"></div>
           <div class="description-box" id="modal-highlighted-description"></div>
 
-          <div class="kanban-move-bar">
-            <span>Mover para:</span>
-            <button type="button" class="btn btn-sm" data-move="abertas">📥 Vagas Abertas</button>
-            <button type="button" class="btn btn-sm" data-move="em_processo">⏳ Em Processo</button>
-            <button type="button" class="btn btn-sm" data-move="sem_sucesso">❌ Sem Sucesso</button>
-            <button type="button" class="btn btn-sm btn-danger" data-move="ruins">👎 Vaga Ruim</button>
-            <button type="button" class="btn btn-sm btn-danger" id="btn-delete-job-modal" title="Excluir esta vaga permanentemente">🗑️ Excluir Vaga</button>
+          <div class="kanban-move-row">
+            <div class="kanban-move-bar">
+              <span>Mover para:</span>
+              <button type="button" class="btn btn-sm" data-move="abertas">📥 Vagas Abertas</button>
+              <button type="button" class="btn btn-sm" data-move="em_processo">⏳ Em Processo</button>
+              <button type="button" class="btn btn-sm" data-move="sem_sucesso">❌ Sem Sucesso</button>
+              <button type="button" class="btn btn-sm btn-danger" data-move="ruins">👎 Vaga Ruim</button>
+            </div>
+            <div class="modal-delete-job-box">
+              <button type="button" class="btn btn-sm btn-danger" id="btn-delete-job-modal" title="Excluir esta vaga permanentemente">🗑️ Excluir Vaga</button>
+            </div>
           </div>
         </div>
 
@@ -345,7 +349,7 @@
               <input type="url" id="prof-github" placeholder="https://github.com/seu-usuario" />
             </div>
             <div>
-              <label>Título Profissional (📄 Usado somente no CV atualizado)</label>
+              <label>Título Profissional</label>
               <input type="text" id="prof-title-pt" placeholder="DevOps Engineer | Cloud & Containers" />
             </div>
           </div>
@@ -977,6 +981,30 @@
           <div class="confirm-actions-row">
             <button type="button" class="btn btn-secondary btn-sm" id="btn-cancel-scrape-confirm">Cancelar</button>
             <button type="button" class="btn btn-primary btn-sm" id="btn-confirm-scrape-run">✅ Buscar Vagas</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- POPUP 11: Confirmação para Deletar Vaga ou Limpar Coluna -->
+  <div id="delete-confirm-modal-backdrop" class="modal-backdrop hidden" style="z-index: 1750;">
+    <div class="modal-window modal-window-sm">
+      <div class="modal-header">
+        <div>
+          <h2 id="delete-confirm-title">⚠️ Confirmar Exclusão</h2>
+          <p class="modal-subtitle" id="delete-confirm-subtitle">Esta ação removerá os dados permanentemente do Kanban.</p>
+        </div>
+        <button type="button" class="btn-close" id="btn-close-delete-confirm">✕</button>
+      </div>
+      <div class="modal-content-padded">
+        <div class="add-item-card" style="margin: 0;">
+          <p id="delete-confirm-message" style="margin: 0 0 16px 0; font-size: 13.5px; line-height: 1.5; color: var(--text);">
+            Tem certeza que deseja excluir?
+          </p>
+          <div style="display: flex; justify-content: flex-end; gap: 8px;">
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-cancel-delete-confirm">Cancelar</button>
+            <button type="button" class="btn btn-danger btn-sm" id="btn-confirm-delete-action">🗑️ Confirmar</button>
           </div>
         </div>
       </div>

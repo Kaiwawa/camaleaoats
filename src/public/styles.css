@@ -1025,14 +1025,32 @@ mark.match-evolving {
   font-weight: 700;
 }
 
+.kanban-move-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
 .kanban-move-bar {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  margin-top: 14px;
   font-size: 12.5px;
   color: var(--muted);
+}
+
+.modal-delete-job-box {
+  display: flex;
+  align-items: center;
+  padding-left: 12px;
+  border-left: 1px solid var(--border);
+  margin-left: auto;
 }
 
 .subtabs {

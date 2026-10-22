@@ -357,6 +357,7 @@ document.addEventListener('keydown', (e) => {
   closeAllColumnFilterPopovers();
 
   const miniModals = [
+    'delete-confirm-modal-backdrop',
     'scrape-confirm-modal-backdrop',
     'skill-edit-modal-backdrop',
     'cert-edit-modal-backdrop',
@@ -408,41 +409,86 @@ document.querySelectorAll('#confirm-modality-checks input[name="confirm-mod-chec
   });
 });
 
-// Clear all jobs in "Vagas Abertas" column
+let pendingDeleteConfirmAction = null;
+
+function openDeleteConfirmModal({ title, message, confirmLabel, onConfirm }) {
+  const modal = document.getElementById('delete-confirm-modal-backdrop');
+  const titleEl = document.getElementById('delete-confirm-title');
+  const msgEl = document.getElementById('delete-confirm-message');
+  const confirmBtn = document.getElementById('btn-confirm-delete-action');
+  if (!modal || !confirmBtn) return;
+
+  if (titleEl) titleEl.textContent = title || '⚠️ Confirmar Exclusão';
+  if (msgEl) msgEl.textContent = message || 'Tem certeza que deseja realizar esta exclusão?';
+  confirmBtn.textContent = confirmLabel || '🗑️ Confirmar';
+  pendingDeleteConfirmAction = onConfirm;
+  modal.classList.remove('hidden');
+}
+
+function closeDeleteConfirmModal() {
+  document.getElementById('delete-confirm-modal-backdrop')?.classList.add('hidden');
+  pendingDeleteConfirmAction = null;
+}
+
+document.getElementById('btn-close-delete-confirm')?.addEventListener('click', closeDeleteConfirmModal);
+document.getElementById('btn-cancel-delete-confirm')?.addEventListener('click', closeDeleteConfirmModal);
+document.getElementById('btn-confirm-delete-action')?.addEventListener('click', async () => {
+  const fn = pendingDeleteConfirmAction;
+  closeDeleteConfirmModal();
+  if (typeof fn === 'function') {
+    await fn();
+  }
+});
+
+// Clear all jobs in "Vagas Abertas" column (with confirmation)
 const clearOpenJobsBtn = document.getElementById('btn-clear-open-jobs');
 if (clearOpenJobsBtn) {
-  clearOpenJobsBtn.addEventListener('click', async () => {
+  clearOpenJobsBtn.addEventListener('click', () => {
     const openCount = state.jobs.filter((j) => j.status === 'abertas').length;
     if (openCount === 0) {
       showToast('A coluna Vagas Abertas já está vazia.');
       return;
     }
-    const res = await fetch('/api/jobs/clear-open', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' }
+    openDeleteConfirmModal({
+      title: '🧹 Limpar Vagas Abertas',
+      message: `Tem certeza que deseja remover todas as ${openCount} vaga(s) da coluna "Vagas Abertas"?`,
+      confirmLabel: '🧹 Sim, Limpar Vagas Abertas',
+      onConfirm: async () => {
+        const res = await fetch('/api/jobs/clear-open', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' }
+        });
+        const data = await res.json();
+        await loadBootstrap();
+        showToast(`Coluna Vagas Abertas limpa (${data.deletedCount || openCount} vaga(s) removida(s))!`);
+      }
     });
-    const data = await res.json();
-    await loadBootstrap();
-    showToast(`Coluna Vagas Abertas limpa (${data.deletedCount || openCount} vaga(s) removida(s))!`);
   });
 }
 
-// Clear all jobs in "Sem Sucesso" column
+// Clear all jobs in "Sem Sucesso" column (with confirmation)
 const clearUnsuccessfulJobsBtn = document.getElementById('btn-clear-unsuccessful-jobs');
 if (clearUnsuccessfulJobsBtn) {
-  clearUnsuccessfulJobsBtn.addEventListener('click', async () => {
+  clearUnsuccessfulJobsBtn.addEventListener('click', () => {
     const count = state.jobs.filter((j) => j.status === 'sem_sucesso').length;
     if (count === 0) {
       showToast('A coluna Sem Sucesso já está vazia.');
       return;
     }
-    const res = await fetch('/api/jobs/clear-unsuccessful', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' }
+    openDeleteConfirmModal({
+      title: '🧹 Limpar Sem Sucesso',
+      message: `Tem certeza que deseja remover todas as ${count} vaga(s) da coluna "Sem Sucesso"?`,
+      confirmLabel: '🧹 Sim, Limpar Sem Sucesso',
+      onConfirm: async () => {
+        const res = await fetch('/api/jobs/clear-unsuccessful', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' }
+        });
+        const data = await res.json();
+        await loadBootstrap();
+        showToast(`Coluna Sem Sucesso limpa (${data.deletedCount || count} vaga(s) removida(s))!`);
+      }
     });
-    const data = await res.json();
-    await loadBootstrap();
-    showToast(`Coluna Sem Sucesso limpa (${data.deletedCount || count} vaga(s) removida(s))!`);
   });
 }
 
@@ -588,10 +634,7 @@ function renderKanban() {
       card.innerHTML = `
         <div class="job-card-top">
           <div class="job-card-title">${escapeHtmlClient(job.title)}</div>
-          <div class="job-card-top-right">
-            <span class="score-pill">${Number(job.matchScore)}% Match</span>
-            <button type="button" class="card-delete-btn" data-delete-job="${job.id}" title="Excluir vaga manualmente">🗑️</button>
-          </div>
+          <span class="score-pill">${Number(job.matchScore)}% Match</span>
         </div>
         <div class="job-card-meta">
           <strong>${escapeHtmlClient(job.company)}</strong> •
@@ -605,14 +648,6 @@ function renderKanban() {
         </div>
         ${recruiterBadge}
       `;
-
-      const delBtn = card.querySelector('[data-delete-job]');
-      if (delBtn) {
-        delBtn.addEventListener('click', async (ev) => {
-          ev.stopPropagation();
-          await deleteJobManually(job.id);
-        });
-      }
 
       container.appendChild(card);
     }
@@ -714,10 +749,13 @@ async function openJobModal(jobId, forcedLang) {
     .map((t) => `<span class="tag-chip">${escapeHtmlClient(t)}</span>`)
     .join('');
 
-  if (job.platform.toLowerCase() === 'gupy') {
-    activateJobSubtab('tab-gupy');
-  } else {
-    activateJobSubtab('tab-cv');
+  // Only select default subtab when first opening the job modal (preserve active tab when switching PT-BR / EN)
+  if (!forcedLang) {
+    if (job.platform.toLowerCase() === 'gupy') {
+      activateJobSubtab('tab-gupy');
+    } else {
+      activateJobSubtab('tab-cv');
+    }
   }
 
   // Tab 3: Tech Recruiter
@@ -796,9 +834,19 @@ document.querySelectorAll('[data-move]').forEach((btn) => {
 
 const deleteJobModalBtn = document.getElementById('btn-delete-job-modal');
 if (deleteJobModalBtn) {
-  deleteJobModalBtn.addEventListener('click', async () => {
+  deleteJobModalBtn.addEventListener('click', () => {
     if (!state.activeJobId) return;
-    await deleteJobManually(state.activeJobId);
+    const jobId = state.activeJobId;
+    const job = state.jobs.find((j) => j.id === jobId);
+    const jobLabel = job ? `"${job.title}" (${job.company})` : `#${jobId}`;
+    openDeleteConfirmModal({
+      title: '🗑️ Excluir Vaga',
+      message: `Tem certeza que deseja excluir permanentemente a vaga ${jobLabel}?`,
+      confirmLabel: '🗑️ Sim, Excluir Vaga',
+      onConfirm: async () => {
+        await deleteJobManually(jobId);
+      }
+    });
   });
 }
 
