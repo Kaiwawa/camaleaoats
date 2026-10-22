@@ -1,13 +1,13 @@
-name: Build Image
+name: Build & Push Image with SBOM
 
 permissions:
   contents: read
   id-token: write
   packages: write
+  attestations: write
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
   IMAGE_TAG: ${{ github.sha }}
 
 on:
@@ -19,39 +19,60 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6.0.3
+        uses: actions/checkout@v4
 
-      - name: Set up Docker Build
-        uses: docker/setup-buildx-action@v4
+      - name: Normalize Image Name to Lowercase
+        run: |
+          IMAGE_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE_NAME=${IMAGE_LOWER}" >> "$GITHUB_ENV"
+          echo "IMAGE_REF=${{ env.REGISTRY }}/${IMAGE_LOWER}:${{ env.IMAGE_TAG }}" >> "$GITHUB_ENV"
+          echo "IMAGE_LATEST=${{ env.REGISTRY }}/${IMAGE_LOWER}:latest" >> "$GITHUB_ENV"
 
-      - name: Docker Build
-        uses: docker/build-push-action@v7
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry (GHCR)
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Local Docker Image for SBOM Scan
+        uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./docker/Dockerfile
+          file: ./Dockerfile
           push: false
           load: true
           tags: camaleao:${{ env.IMAGE_TAG }}
 
-     - name: Save Docker Image
-       run: |
-         docker save camaleao:${{ env.IMAGE_TAG }} -o ./trabalho-1-${{ env.IMAGE_TAG }}.tar
+      - name: Save Docker Image Tarball
+        run: |
+          docker save camaleao:${{ env.IMAGE_TAG }} -o ./camaleao-${{ env.IMAGE_TAG }}.tar
 
-     - name: Generate SBOM CycloneDX
-       uses: aquasecurity/trivy-action@v0.36.0
-       with:
-         input: ./camaleao-${{ env.IMAGE_TAG }}.tar
-         format: 'cyclonedx'
-         output: 'sbom.json'
+      - name: Generate SBOM CycloneDX (Trivy)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          input: ./camaleao-${{ env.IMAGE_TAG }}.tar
+          format: 'cyclonedx'
+          output: 'sbom.json'
 
-      - name: Upload SBOM
-        uses: actions/upload-artifact@v7.0.1
+      - name: Upload SBOM Artifact
+        uses: actions/upload-artifact@v4
         with:
           name: sbom-${{ github.sha }}
           path: ./sbom.json
-          retention-days: 1
+          retention-days: 30
 
-      - name: Tag and Push Image to Registry
-        run: |
-          docker tag camaleao:${{ env.IMAGE_TAG }} ${{ env.IMAGE_REF }}
-          docker push ${{ env.IMAGE_REF }}
+      - name: Build and Push Image + SBOM Attestation to GHCR
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          sbom: true
+          provenance: true
+          tags: |
+            ${{ env.IMAGE_REF }}
+            ${{ env.IMAGE_LATEST }}

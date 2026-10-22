@@ -61,21 +61,43 @@
 
 ## 🚀 Como Executar
 
-### Opção 1: Via Docker Compose (Recomendado)
+### 📦 Para Usuário Final (Direto via Docker Image — Sem Clonar Repositório)
+
+A imagem oficial já compilada (com **SBOM CycloneDX** anexado via GitHub Actions) é distribuída pelo **GitHub Container Registry (GHCR)**. Você pode rodar o **CamaleãoATS** com um único comando `docker run`:
 
 ```bash
-git clone <URL_DO_SEU_REPOSITORIO>
-cd camaleao-ats
+docker run -d \
+  --name camaleao-ats \
+  -p 3000:3000 \
+  -v camaleao_data:/app/data \
+  --security-opt no-new-privileges:true \
+  --restart unless-stopped \
+  ghcr.io/kaiwawa/camaleaoats:latest
+```
+
+> 💡 Caso prefira salvar o banco SQLite e os arquivos na pasta atual da sua máquina em vez de um volume gerenciado pelo Docker, substitua `-v camaleao_data:/app/data` por `-v $(pwd)/data:/app/data`.
+
+Acesse no navegador: **[http://localhost:3000](http://localhost:3000)**
+
+---
+
+### 🛠️ Modo Desenvolvedor (`git clone` + `docker compose`)
+
+Se você deseja modificar o código, criar novas features ou buildar a imagem localmente:
+
+```bash
+git clone https://github.com/Kaiwawa/camaleaoats.git
+cd camaleaoats
 docker compose up -d --build
 ```
 
 Acesse no navegador: **[http://localhost:3000](http://localhost:3000)**
 
-> Os dados do seu perfil, vagas do Kanban e prompts `.md` ficam persistidos localmente na pasta `./data` (ignorada pelo `.gitignore`).
+> Os dados do seu perfil, vagas do Kanban e prompts `.md` ficam persistidos localmente na pasta `./data` (ignorada automaticamente pelo `.gitignore`).
 
-### Opção 2: Rodando Localmente com Node.js (v24+)
+#### Rodando sem Docker (Node.js v24+)
 
-O projeto utiliza o suporte nativo a TypeScript e SQLite (`node:sqlite`) do **Node.js 24**, sem necessidade de dependências externas pesadas:
+O projeto utiliza o suporte nativo a TypeScript e SQLite (`node:sqlite`) do **Node.js 24**:
 
 ```bash
 npm start
