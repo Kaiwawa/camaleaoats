@@ -26,14 +26,21 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
+      - name: Checkout Repository (Full History for Commit Count Versioning)
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Normalize Image Name to Lowercase
+      - name: Compute Version (0.<commit_count>) and Image Tags
         run: |
           IMAGE_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          COMMIT_COUNT=$(git rev-list --count HEAD)
+          VERSION_TAG="0.${COMMIT_COUNT}"
+          SHORT_SHA=$(git rev-parse --short HEAD)
           echo "IMAGE_NAME=${IMAGE_LOWER}" >> "$GITHUB_ENV"
-          echo "IMAGE_REF=${{ env.REGISTRY }}/${IMAGE_LOWER}:${{ env.IMAGE_TAG }}" >> "$GITHUB_ENV"
+          echo "VERSION_TAG=${VERSION_TAG}" >> "$GITHUB_ENV"
+          echo "IMAGE_VERSION=${{ env.REGISTRY }}/${IMAGE_LOWER}:${VERSION_TAG}" >> "$GITHUB_ENV"
+          echo "IMAGE_SHA=${{ env.REGISTRY }}/${IMAGE_LOWER}:sha-${SHORT_SHA}" >> "$GITHUB_ENV"
           echo "IMAGE_LATEST=${{ env.REGISTRY }}/${IMAGE_LOWER}:latest" >> "$GITHUB_ENV"
 
       - name: Set up Docker Buildx
@@ -69,7 +76,7 @@ jobs:
       - name: Upload SBOM Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: sbom-${{ github.sha }}
+          name: sbom-v${{ env.VERSION_TAG }}-${{ github.sha }}
           path: ./sbom.json
           retention-days: 30
 
@@ -82,5 +89,6 @@ jobs:
           sbom: true
           provenance: true
           tags: |
-            ${{ env.IMAGE_REF }}
+            ${{ env.IMAGE_VERSION }}
             ${{ env.IMAGE_LATEST }}
+            ${{ env.IMAGE_SHA }}
