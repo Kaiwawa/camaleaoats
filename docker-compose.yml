@@ -1,0 +1,12 @@
+services:
+  camaleao-ats:
+    build: .
+    container_name: camaleao-ats
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - PORT=3000
+      - CAMALEAO_DB_PATH=/app/data/camaleao.db
+    restart: unless-stopped
